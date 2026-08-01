@@ -3,7 +3,7 @@ import React, { useState, useRef, useCallback } from 'react';
 import { Tool } from '@/data/tools';
 import { Upload, Copy, Download, ClipboardPaste, ArrowLeftRight } from 'lucide-react';
 import { toast } from 'sonner';
-import AppImage from '@/components/ui/AppImage';
+import AppImage from '../../../../components/ui/AppImage';
 
 type Mode = 'encode' | 'decode';
 
