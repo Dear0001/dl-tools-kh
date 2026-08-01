@@ -2,7 +2,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { Wrench, ArrowLeft } from 'lucide-react';
-import { TOOLS, CATEGORY_COLORS } from '@/data/tools';
+import { TOOLS, CATEGORY_COLORS } from '../../../data/tools';
 import { useRouter } from 'next/navigation';
 
 const POPULAR = TOOLS?.filter((t) => t?.popular)?.slice(0, 6);
