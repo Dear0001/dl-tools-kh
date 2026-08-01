@@ -32,7 +32,7 @@ export default function Topbar() {
             <Link href="/" className="flex items-center gap-2.5 group">
               <AppLogo size={28} />
               <span className="font-semibold text-base tracking-tight text-foreground group-hover:text-primary transition-colors duration-150">
-                DevToolkit
+                ឧបករណ៍​កម្ពុជា
               </span>
               <span className="hidden sm:inline-flex items-center gap-1 text-2xs font-semibold text-primary bg-primary/10 border border-primary/20 rounded px-1.5 py-0.5 tracking-wider uppercase">
                 <Zap size={9} />
@@ -62,7 +62,7 @@ export default function Topbar() {
             {/* Right actions */}
             <div className="flex items-center gap-2">
               <a
-                href="https://github.com"
+                href="https://github.com/Dear0001"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="btn-icon hidden sm:flex"
