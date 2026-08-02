@@ -6,6 +6,9 @@ package-lock.json
 .next/
 out/
 
+./github/
+
+
 # Production build
 build/
 

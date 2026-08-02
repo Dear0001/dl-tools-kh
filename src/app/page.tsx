@@ -1,5 +1,5 @@
-import React, { Suspense } from 'react';
-import AppLayout from '@/components/AppLayout';
+﻿import React, { Suspense } from 'react';
+import Link from 'next/link';
 import HeroSearch from './components/HeroSearch';
 import CategoryFilters from './components/CategoryFilters';
 import ToolGrid from './components/ToolGrid';
@@ -8,54 +8,103 @@ import Toast from '@/components/ui/Toast';
 
 export default function HomePage() {
   return (
-    <AppLayout>
+    <>
       <Toast />
       <div className="w-full max-w-screen-2xl mx-auto px-6 lg:px-8 xl:px-10 2xl:px-16 py-10">
-        {/* Hero section */}
-        <section className="mb-10">
-          <div className="relative rounded-2xl overflow-hidden bg-grid-pattern border border-border p-8 md:p-12 mb-8">
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-accent/5 pointer-events-none" />
-            <div className="relative z-10 max-w-2xl">
-              <div className="flex items-center gap-2 mb-3">
-                <span className="tool-category-badge bg-primary/10 text-primary border border-primary/20">
-                  100% Client-Side
-                </span>
-                <span className="tool-category-badge bg-muted text-muted-foreground border border-border">
-                  No Login Required
-                </span>
-                <span className="tool-category-badge bg-accent/10 text-accent border border-accent/20">
-                  29 Tools
-                </span>
-              </div>
-              <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-3 text-balance">
-                Developer Tools,{' '}
-                <span className="text-primary text-primary-glow">Right in Your Browser</span>
-              </h1>
-              <p className="text-muted-foreground text-base leading-relaxed mb-6">
-                Format, diff, convert, generate, and inspect — zero install, zero signup, zero data leaving your machine.
-              </p>
-              <HeroSearch />
+        <section className="grid gap-10 lg:grid-cols-[1fr_0.95fr] items-center py-10">
+          <div className="space-y-6">
+            <span className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-4 py-1.5 text-sm font-semibold text-primary">
+              <span className="h-2 w-2 rounded-full bg-primary" /> 100% browser-native toolkit
+            </span>
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-tight text-foreground">
+              Build, inspect, and format code with a powerful browser toolkit.
+            </h1>
+            <p className="max-w-2xl text-base sm:text-lg leading-8 text-muted-foreground">
+              DevToolkit brings developer utilities directly to your browser. No installs, no accounts, no backend processing.
+            </p>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+              <Link href="/tool-workspace" className="inline-flex items-center justify-center rounded-full bg-primary px-6 py-3 text-sm font-semibold text-background shadow-lg shadow-primary/15 transition hover:bg-primary/90">
+                Open workspace
+              </Link>
+              <Link href="#features" className="inline-flex items-center justify-center rounded-full border border-border bg-card px-6 py-3 text-sm font-semibold text-foreground transition hover:bg-muted">
+                Discover features
+              </Link>
             </div>
           </div>
 
-          {/* Recent tools strip */}
-          <RecentTools />
+          <div className="rounded-[2rem] border border-border bg-card p-6 shadow-xl shadow-black/5">
+            <div className="grid gap-5">
+              <div className="rounded-[1.5rem] border border-border bg-background/90 p-5">
+                <div className="mb-4 flex items-center justify-between">
+                  <span className="text-sm font-semibold text-foreground">Quick launch</span>
+                  <span className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Fast</span>
+                </div>
+                <p className="text-sm leading-6 text-muted-foreground">
+                  Search tools instantly and start editing with zero setup.
+                </p>
+                <div className="mt-5">
+                  <HeroSearch />
+                </div>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-[1.5rem] border border-border bg-background/90 p-5">
+                  <p className="text-xs uppercase tracking-[0.28em] text-muted-foreground">Privacy</p>
+                  <p className="mt-3 text-base font-semibold text-foreground">Your data stays in the browser.</p>
+                </div>
+                <div className="rounded-[1.5rem] border border-border bg-background/90 p-5">
+                  <p className="text-xs uppercase tracking-[0.28em] text-muted-foreground">Instant</p>
+                  <p className="mt-3 text-base font-semibold text-foreground">Tools are ready immediately, with no backend latency.</p>
+                </div>
+              </div>
+            </div>
+          </div>
         </section>
 
-        {/* Category filters + tool grid */}
-        <section>
-          <Suspense fallback={
-            <div className="flex flex-wrap gap-2 mb-6">
-              {Array.from({ length: 7 }).map((_, i) => (
-                <div key={`cat-skeleton-${i}`} className="animate-pulse h-8 w-24 rounded-full bg-muted border border-border" />
-              ))}
+        <section id="features" className="space-y-8 py-10">
+          <div className="grid gap-8 lg:grid-cols-3">
+            <div className="rounded-[2rem] border border-border bg-card p-6">
+              <h2 className="text-xl font-semibold text-foreground">Designed for developers</h2>
+              <p className="mt-3 text-sm leading-6 text-muted-foreground">Tools for everyday code work: formatting, validation, encoding, and quick inspections.</p>
             </div>
-          }>
-            <CategoryFilters />
-          </Suspense>
-          <ToolGrid />
+            <div className="rounded-[2rem] border border-border bg-card p-6">
+              <h2 className="text-xl font-semibold text-foreground">No login required</h2>
+              <p className="mt-3 text-sm leading-6 text-muted-foreground">Start using the toolkit instantly without accounts, registrations, or cloud dependencies.</p>
+            </div>
+            <div className="rounded-[2rem] border border-border bg-card p-6">
+              <h2 className="text-xl font-semibold text-foreground">Responsive experience</h2>
+              <p className="mt-3 text-sm leading-6 text-muted-foreground">Works smoothly across desktop and mobile browsers.</p>
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-[2rem] border border-border bg-card p-8">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.3em] text-primary">Featured tools</p>
+              <h2 className="mt-3 text-3xl font-bold text-foreground">Powerful utilities, zero setup.</h2>
+            </div>
+            <Link href="/tool-workspace" className="inline-flex items-center justify-center rounded-full border border-border bg-background px-6 py-3 text-sm font-semibold text-foreground transition hover:bg-muted">
+              Open workspace
+            </Link>
+          </div>
+          <div className="mt-8">
+            <Suspense fallback={
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {Array.from({ length: 6 }).map((_, index) => (
+                  <div key={index} className="h-28 rounded-[1.5rem] bg-muted/40 animate-pulse" />
+                ))}
+              </div>
+            }>
+              <CategoryFilters />
+            </Suspense>
+            <ToolGrid />
+          </div>
+        </section>
+
+        <section className="mt-10">
+          <RecentTools />
         </section>
       </div>
-    </AppLayout>
+    </>
   );
 }

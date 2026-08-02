@@ -1,10 +1,86 @@
 'use client';
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Tool } from '@/data/tools';
 import { Upload, ScanLine, ClipboardPaste, Copy, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import jsQR from 'jsqr';
 import AppImage from '@/components/ui/AppImage';
+
+interface TlvTag {
+  tag: string;
+  length: number;
+  value: string;
+  label: string;
+  children?: TlvTag[];
+}
+
+const TAG_LABELS: Record<string, string> = {
+  '00': 'Payload Format Indicator',
+  '01': 'Point of Initiation Method',
+  '26': 'Merchant Account Info',
+  '27': 'Merchant Account Info',
+  '29': 'Merchant Account Info (KHQR)',
+  '40': 'Additional Data Field Template',
+  '52': 'Merchant Category Code',
+  '53': 'Transaction Currency',
+  '54': 'Transaction Amount',
+  '55': 'Tip or Convenience Indicator',
+  '58': 'Country Code',
+  '59': 'Merchant Name',
+  '60': 'Merchant City',
+  '61': 'Postal Code',
+  '62': 'Additional Data Field',
+  '63': 'CRC',
+};
+
+const NESTED_TLV_TAGS = new Set(['26', '27', '29', '40', '62']);
+
+function crc16(data: string): string {
+  let crc = 0xffff;
+  for (let i = 0; i < data.length; i += 1) {
+    crc ^= data.charCodeAt(i) << 8;
+    for (let j = 0; j < 8; j += 1) {
+      crc = crc & 0x8000 ? (crc << 1) ^ 0x1021 : crc << 1;
+    }
+  }
+  return (crc & 0xffff).toString(16).toUpperCase().padStart(4, '0');
+}
+
+function parseTlv(data: string): TlvTag[] {
+  const tags: TlvTag[] = [];
+  let i = 0;
+  while (i + 4 <= data.length) {
+    const tag = data.slice(i, i + 2);
+    const lenStr = data.slice(i + 2, i + 4);
+    const len = parseInt(lenStr, 10);
+    if (Number.isNaN(len) || i + 4 + len > data.length) break;
+    const value = data.slice(i + 4, i + 4 + len);
+    const children = NESTED_TLV_TAGS.has(tag) ? parseTlv(value) : undefined;
+    tags.push({
+      tag,
+      length: len,
+      value,
+      label: TAG_LABELS[tag] || `Tag ${tag}`,
+      children,
+    });
+    i += 4 + len;
+  }
+  return tags;
+}
+
+function renderTlvChildren(children: TlvTag[], level = 1): React.ReactNode {
+  return children.map((child, index) => (
+    <div key={`${child.tag}-${level}-${index}`}>
+      <div className={`flex items-start gap-3 px-4 py-2 transition-colors ${level % 2 === 1 ? 'bg-muted/10' : 'bg-muted/05'} ${level > 1 ? 'pl-10' : ''}`}>
+        <span className="font-mono text-xs text-amber-400 w-8 flex-shrink-0 tabular-nums">{child.tag}</span>
+        <span className="text-xs text-muted-foreground w-48 flex-shrink-0 truncate">{child.label}</span>
+        <span className="text-xs text-muted-foreground w-6 flex-shrink-0 tabular-nums">{child.length}</span>
+        <span className="font-mono text-xs text-foreground flex-1 break-all">{child.value}</span>
+      </div>
+      {child.children && renderTlvChildren(child.children, level + 1)}
+    </div>
+  ));
+}
 
 export default function QrReaderPanel({ tool }: { tool: Tool }) {
   const [result, setResult] = useState('');
@@ -12,10 +88,14 @@ export default function QrReaderPanel({ tool }: { tool: Tool }) {
   const [scanning, setScanning] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
+  const [tags, setTags] = useState<TlvTag[]>([]);
+  const [crcValid, setCrcValid] = useState<boolean | null>(null);
+  const [parseError, setParseError] = useState<string>('');
   const fileRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const prevPreviewUrl = useRef<string | null>(null);
 
   const decodeFromCanvas = (canvas: HTMLCanvasElement): string | null => {
     const ctx = canvas.getContext('2d');
@@ -25,10 +105,54 @@ export default function QrReaderPanel({ tool }: { tool: Tool }) {
     return code ? code.data : null;
   };
 
+  const validateResult = useCallback((decoded: string) => {
+    const data = decoded.trim();
+    if (!data) {
+      setTags([]);
+      setCrcValid(null);
+      setParseError('');
+      return;
+    }
+
+    const parsed = parseTlv(data);
+    if (!parsed.length) {
+      setTags([]);
+      setParseError('No EMVCo/KHQR tag structure detected');
+      setCrcValid(null);
+      return;
+    }
+
+    setTags(parsed);
+    setParseError('');
+
+    const crcIndex = data.lastIndexOf('6304');
+    if (crcIndex !== -1 && data.length >= crcIndex + 8) {
+      const withoutCrc = data.slice(0, crcIndex + 4);
+      const providedCrc = data.slice(crcIndex + 4, crcIndex + 8).toUpperCase();
+      setCrcValid(providedCrc === crc16(withoutCrc));
+    } else {
+      setCrcValid(null);
+    }
+  }, []);
+
+  const updateResult = useCallback(
+    (decoded: string) => {
+      setResult(decoded);
+      setError('');
+      validateResult(decoded);
+    },
+    [validateResult],
+  );
+
   const processImage = useCallback((file: File) => {
     setError('');
     const url = URL.createObjectURL(file);
+    if (prevPreviewUrl.current) {
+      URL.revokeObjectURL(prevPreviewUrl.current);
+    }
+    prevPreviewUrl.current = url;
     setPreviewUrl(url);
+
     const img = new Image();
     img.src = url;
     img.onload = () => {
@@ -40,14 +164,17 @@ export default function QrReaderPanel({ tool }: { tool: Tool }) {
       ctx.drawImage(img, 0, 0);
       const decoded = decodeFromCanvas(canvas);
       if (decoded) {
-        setResult(decoded);
+        updateResult(decoded);
         toast.success('QR code decoded successfully');
       } else {
         setError('No QR code detected in this image — try a clearer or higher-resolution image');
         setResult('');
+        setTags([]);
+        setCrcValid(null);
+        setParseError('');
       }
     };
-  }, []);
+  }, [updateResult]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -65,11 +192,27 @@ export default function QrReaderPanel({ tool }: { tool: Tool }) {
           return;
         }
       }
-      toast.error('No image found in clipboard');
+      const text = await navigator.clipboard.readText();
+      if (text) {
+        updateResult(text);
+        toast.success('Text pasted from clipboard');
+        return;
+      }
+      toast.error('No image or text found in clipboard');
     } catch {
+      try {
+        const text = await navigator.clipboard.readText();
+        if (text) {
+          updateResult(text);
+          toast.success('Text pasted from clipboard');
+          return;
+        }
+      } catch {
+        // ignore
+      }
       toast.error('Clipboard access denied');
     }
-  }, [processImage]);
+  }, [processImage, updateResult]);
 
   const startCamera = async () => {
     try {
@@ -111,6 +254,38 @@ export default function QrReaderPanel({ tool }: { tool: Tool }) {
     }
     if (streamRef.current) requestAnimationFrame(scanFrame);
   };
+
+  useEffect(() => {
+    const handleClipboardPaste = (event: ClipboardEvent) => {
+      if (!event.clipboardData) return;
+      const imageItem = Array.from(event.clipboardData.items).find((item) => item.type.startsWith('image/'));
+
+      if (imageItem) {
+        event.preventDefault();
+        const file = imageItem.getAsFile();
+        if (file) {
+          processImage(file);
+        }
+        return;
+      }
+
+      const text = event.clipboardData.getData('text');
+      if (text) {
+        event.preventDefault();
+        updateResult(text);
+        toast.success('Text pasted from clipboard');
+      }
+    };
+
+    document.addEventListener('paste', handleClipboardPaste);
+    return () => {
+      document.removeEventListener('paste', handleClipboardPaste);
+      if (prevPreviewUrl.current) {
+        URL.revokeObjectURL(prevPreviewUrl.current);
+        prevPreviewUrl.current = null;
+      }
+    };
+  }, [processImage, updateResult]);
 
   const copyResult = async () => {
     if (!result) return;
@@ -172,6 +347,7 @@ export default function QrReaderPanel({ tool }: { tool: Tool }) {
             <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-3">Scanned Image</span>
             <div className="bg-[#0a0a0c] rounded-lg flex items-center justify-center p-4">
               <AppImage
+                key={previewUrl}
                 src={previewUrl}
                 alt="Uploaded image being scanned for QR code content"
                 width={280}
@@ -205,6 +381,45 @@ export default function QrReaderPanel({ tool }: { tool: Tool }) {
             </div>
             <pre className="font-mono text-sm text-foreground break-all whitespace-pre-wrap">{result}</pre>
             <p className="text-xs text-muted-foreground mt-2 tabular-nums">{result.length} characters</p>
+          </div>
+        )}
+
+        {parseError && (
+          <div className="flex items-start gap-2 p-3.5 rounded-xl bg-yellow-500/10 border border-yellow-500/20">
+            <span className="text-yellow-500 mt-0.5">⚠</span>
+            <span className="text-xs text-yellow-500">{parseError}</span>
+          </div>
+        )}
+
+        {tags.length > 0 && (
+          <div className="bg-card border border-border rounded-xl overflow-hidden">
+            <div className="panel-header rounded-t-xl">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Tag Validation</span>
+              <span className="text-xs text-muted-foreground">{tags.length} tags parsed</span>
+            </div>
+            <div className="divide-y divide-border">
+              {tags.map((tag, i) => (
+                <div key={`tlv-${i}-${tag.tag}`}>
+                  <div className="flex items-start gap-3 px-4 py-3 hover:bg-muted/20 transition-colors">
+                    <span className="font-mono text-xs text-violet-400 w-8 flex-shrink-0 tabular-nums">{tag.tag}</span>
+                    <span className="text-xs text-muted-foreground w-48 flex-shrink-0 truncate">{tag.label}</span>
+                    <span className="text-xs text-muted-foreground w-6 flex-shrink-0 tabular-nums">{tag.length}</span>
+                    <span className="font-mono text-xs text-foreground flex-1 break-all">{tag.value}</span>
+                  </div>
+                  {tag.children && renderTlvChildren(tag.children, 1)}
+                </div>
+              ))}
+              {crcValid !== null && (
+                <div className="flex items-start gap-3 px-4 py-3 hover:bg-muted/20 transition-colors">
+                  <span className="font-mono text-xs text-violet-400 w-8 flex-shrink-0">63</span>
+                  <span className="text-xs text-muted-foreground w-48 flex-shrink-0 truncate">CRC</span>
+                  <span className="text-xs text-muted-foreground w-6 flex-shrink-0 tabular-nums">04</span>
+                  <span className={`font-mono text-xs flex-1 ${crcValid ? 'text-primary' : 'text-red-400'}`}>
+                    {crcValid ? 'CRC valid' : 'CRC mismatch'}
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
         )}
 

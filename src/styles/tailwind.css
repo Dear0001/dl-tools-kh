@@ -31,6 +31,25 @@
     border-color: var(--border);
   }
 
+  html.light {
+    color-scheme: light;
+    --background: #F8F8FB;
+    --foreground: #111118;
+    --primary: #00D4AA;
+    --primary-foreground: #0E0E10;
+    --secondary: #F3F3F8;
+    --secondary-foreground: #111118;
+    --accent: #7C6AF7;
+    --accent-foreground: #F8F8FB;
+    --muted: #E5E5EA;
+    --muted-foreground: #64666F;
+    --card: #FFFFFF;
+    --card-foreground: #111118;
+    --border: #D6D7E0;
+    --input: #F5F5FA;
+    --ring: #00D4AA;
+  }
+
   body {
     background-color: var(--background);
     color: var(--foreground);
@@ -258,19 +277,25 @@
     padding: 7px 14px;
     border-radius: 6px;
     border: 1px solid var(--border);
-    cursor: pointer;
-    transition: all 150ms ease;
+  }
+
+  .btn-icon {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-  }
-
-  .btn-ghost:hover {
-    background-color: var(--muted);
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+    border: 1px solid transparent;
     color: var(--foreground);
-    border-color: rgba(255,255,255,0.12);
+    background: rgba(255,255,255,0.04);
+    transition: background-color 150ms ease, border-color 150ms ease;
   }
 
+  .btn-icon:hover {
+    background: rgba(255,255,255,0.08);
+    border-color: var(--border);
+  }
   .btn-ghost:active {
     transform: scale(0.97);
   }

@@ -1,0 +1,35 @@
+const sample = `{"apiResponse":{"ResponseHeader":{"ResponseCode":"0","ResponseMessage":"Success"},"ResponseBody":{"responseObj":"{\\\"expireAt\\\":1785134869803,\\\"khQr\\\":\\\"00020101021230780016ftcckhppxxx@ftcc0120MCTMAIN16645073887650230Foreign Trade Bank of Cambodia520460505303116540441005802KH5916FTB Merchant POS6007Private62520107202012202080937773603120000100044040709outlet 0499340013178513474981001131785134869803630422BB\\\",\\\"khQrImage\\\":\\\"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\"}\"}}}`;
+
+function deepParseJsonStrings(value, depth = 0) {
+  if (depth >= 5) return value;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']')) || (trimmed.startsWith('"') && trimmed.endsWith('"'))) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        return deepParseJsonStrings(parsed, depth + 1);
+      } catch {
+        return value;
+      }
+    }
+    return value;
+  }
+  if (Array.isArray(value)) return value.map((item) => deepParseJsonStrings(item, depth));
+  if (value && typeof value === 'object') {
+    return Object.entries(value).reduce((acc, [key, child]) => {
+      acc[key] = deepParseJsonStrings(child, depth);
+      return acc;
+    }, {});
+  }
+  return value;
+}
+
+try {
+  const parsed = JSON.parse(sample);
+  console.log(parsed.apiResponse.ResponseBody.responseObj.slice(0, 10));
+  const deep = deepParseJsonStrings(parsed);
+  console.log('parsed object', typeof deep.apiResponse.ResponseBody.responseObj);
+  console.log('keys', Object.keys(deep.apiResponse.ResponseBody.responseObj));
+} catch (err) {
+  console.error(err);
+}

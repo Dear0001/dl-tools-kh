@@ -1,11 +1,10 @@
 import React, { Suspense } from 'react';
-import AppLayout from '@/components/AppLayout';
 import WorkspaceLoader from './components/WorkspaceLoader';
 import Toast from '@/components/ui/Toast';
 
 export default function ToolWorkspacePage() {
   return (
-    <AppLayout>
+    <>
       <Toast />
       <Suspense fallback={
         <div className="w-full h-[calc(100vh-56px)] flex items-center justify-center">
@@ -17,6 +16,6 @@ export default function ToolWorkspacePage() {
       }>
         <WorkspaceLoader />
       </Suspense>
-    </AppLayout>
+    </>
   );
 }

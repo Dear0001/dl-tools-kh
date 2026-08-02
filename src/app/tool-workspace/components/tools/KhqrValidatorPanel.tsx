@@ -30,6 +30,7 @@ const TAG_LABELS: Record<string, string> = {
   '26': 'Merchant Account Info (Visa)',
   '27': 'Merchant Account Info (Mastercard)',
   '29': 'Merchant Account Info (KHQR)',
+  '40': 'Additional Data Field Template',
   '52': 'Merchant Category Code',
   '53': 'Transaction Currency',
   '54': 'Transaction Amount',
@@ -42,6 +43,14 @@ const TAG_LABELS: Record<string, string> = {
   '63': 'CRC',
 };
 
+const NESTED_TLV_TAGS = new Set(['26', '27', '29', '40', '62']);
+
+function tryParseNestedTlv(data: string): TlvTag[] | undefined {
+  const nested = parseTlv(data);
+  const parsedLength = nested.reduce((sum, tag) => sum + 4 + tag.length, 0);
+  return nested.length > 0 && parsedLength === data.length ? nested : undefined;
+}
+
 function parseTlv(data: string): TlvTag[] {
   const tags: TlvTag[] = [];
   let i = 0;
@@ -52,16 +61,31 @@ function parseTlv(data: string): TlvTag[] {
     const len = parseInt(lenStr, 10);
     if (isNaN(len)) break;
     const value = data.slice(i + 4, i + 4 + len);
+    const children = NESTED_TLV_TAGS.has(tag) ? tryParseNestedTlv(value) : undefined;
     tags.push({
       tag,
       length: len,
       value,
       label: TAG_LABELS[tag] || `Tag ${tag}`,
-      children: (tag === '29' || tag === '62') ? parseTlv(value) : undefined,
+      children,
     });
     i += 4 + len;
   }
   return tags;
+}
+
+function renderTlvChildren(children: TlvTag[], level: number): React.ReactNode {
+  return children.map((child, ci) => (
+    <div key={`tlv-child-${level}-${ci}-${child.tag}`}>
+      <div className={`flex items-start gap-3 px-4 py-2 transition-colors ${level % 2 === 1 ? 'bg-muted/10' : 'bg-muted/05'} ${level > 1 ? 'pl-10' : ''}`}>
+        <span className="font-mono text-xs text-amber-400 w-8 flex-shrink-0 tabular-nums">{child.tag}</span>
+        <span className="text-xs text-muted-foreground w-48 flex-shrink-0 truncate">{child.label}</span>
+        <span className="text-xs text-muted-foreground w-6 flex-shrink-0 tabular-nums">{child.length}</span>
+        <span className="font-mono text-xs text-foreground flex-1 break-all">{child.value}</span>
+      </div>
+      {child.children && renderTlvChildren(child.children, level + 1)}
+    </div>
+  ));
 }
 
 const SAMPLE = 'bakong.io00020101021226480016bakong.io0110devtoolkit@wing0209MERCHANT010304WING52045999530384054052.5058KH5916DevToolkit Store6010Phnom Penh62280114INV-2026-0010310Main Branch0707POS-0016304';
@@ -169,14 +193,7 @@ export default function KhqrValidatorPanel({ tool }: { tool: Tool }) {
                     <span className="text-xs text-muted-foreground w-6 flex-shrink-0 tabular-nums">{tag.length}</span>
                     <span className="font-mono text-xs text-foreground flex-1 break-all">{tag.value}</span>
                   </div>
-                  {tag.children && tag.children.map((child, ci) => (
-                    <div key={`tlv-child-${i}-${ci}-${child.tag}`} className="flex items-start gap-3 px-4 py-2 bg-muted/10 hover:bg-muted/20 transition-colors pl-10">
-                      <span className="font-mono text-xs text-amber-400 w-8 flex-shrink-0 tabular-nums">{child.tag}</span>
-                      <span className="text-xs text-muted-foreground w-48 flex-shrink-0 truncate">{child.label}</span>
-                      <span className="text-xs text-muted-foreground w-6 flex-shrink-0 tabular-nums">{child.length}</span>
-                      <span className="font-mono text-xs text-foreground flex-1 break-all">{child.value}</span>
-                    </div>
-                  ))}
+                  {tag.children && renderTlvChildren(tag.children, 1)}
                 </div>
               ))}
               {/* CRC row */}

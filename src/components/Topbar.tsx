@@ -1,5 +1,5 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import AppLogo from '@/components/ui/AppLogo';
@@ -14,14 +14,98 @@ function GithubIcon({ size = 16 }: { size?: number }) {
   );
 }
 
-const navLinks = [
-  { label: 'Tool Hub', href: '/', key: 'nav-hub' },
-  { label: 'Workspace', href: '/tool-workspace', key: 'nav-workspace' },
-];
+const i18n = {
+  en: {
+    toolHub: 'Tool Hub',
+    workspace: 'Workspace',
+    allClient: 'All client-side',
+    theme: 'Theme',
+    light: 'Light',
+    dark: 'Dark',
+    language: 'Language',
+    free: 'Free',
+  },
+  kh: {
+    toolHub: 'មជ្ឈមណ្ឌលឧបករណ៍',
+    workspace: 'កន្លែងធ្វើការ',
+    allClient: 'ទាំងអស់នៅលើ Client',
+    theme: 'ប្រធានពណ៌',
+    light: 'ស្រាល',
+    dark: 'ងងឹត',
+    language: 'ភាសា',
+    free: 'ឥតគិតថ្លៃ',
+  },
+};
 
 export default function Topbar() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [theme, setTheme] = useState<'dark' | 'light'>('light');
+  const [locale, setLocale] = useState<'en' | 'kh'>('kh');
+  const [userSelectedTheme, setUserSelectedTheme] = useState(false);
+  const [userSelectedLocale, setUserSelectedLocale] = useState(false);
+
+  useEffect(() => {
+    try {
+      const storedTheme = window.localStorage.getItem('devtoolkit-theme');
+      const storedLocale = window.localStorage.getItem('devtoolkit-locale');
+
+      if (storedTheme === 'dark' || storedTheme === 'light') {
+        setTheme(storedTheme);
+        setUserSelectedTheme(true);
+      }
+      if (storedLocale === 'en' || storedLocale === 'kh') {
+        setLocale(storedLocale);
+        setUserSelectedLocale(true);
+      }
+    } catch {
+      // ignore localStorage errors in unsupported environments
+    }
+  }, []);
+
+  const texts = i18n[locale];
+  const navLinks = [
+    { label: texts.toolHub, href: '/', key: 'nav-hub' },
+    { label: texts.workspace, href: '/tool-workspace', key: 'nav-workspace' },
+  ];
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === 'light') {
+      root.classList.add('light');
+      root.classList.remove('dark');
+    } else {
+      root.classList.add('dark');
+      root.classList.remove('light');
+    }
+  }, [theme]);
+
+  useEffect(() => {
+    document.documentElement.lang = locale === 'kh' ? 'km' : 'en';
+  }, [locale]);
+
+  const toggleTheme = () => {
+    setTheme((current) => {
+      const next = current === 'dark' ? 'light' : 'dark';
+      try {
+        window.localStorage.setItem('devtoolkit-theme', next);
+        setUserSelectedTheme(true);
+      } catch {
+        // ignore localStorage write failures
+      }
+      return next;
+    });
+  };
+
+  const handleLocaleChange = (value: 'en' | 'kh') => {
+    setLocale(value);
+    try {
+      window.localStorage.setItem('devtoolkit-locale', value);
+      setUserSelectedLocale(true);
+    } catch {
+      // ignore localStorage write failures
+    }
+  };
 
   return (
     <>
@@ -36,7 +120,7 @@ export default function Topbar() {
               </span>
               <span className="hidden sm:inline-flex items-center gap-1 text-2xs font-semibold text-primary bg-primary/10 border border-primary/20 rounded px-1.5 py-0.5 tracking-wider uppercase">
                 <Zap size={9} />
-                Free
+                {texts.free}
               </span>
             </Link>
 
@@ -61,6 +145,23 @@ export default function Topbar() {
 
             {/* Right actions */}
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="btn-ghost hidden sm:inline-flex px-3 py-1.5 rounded-md text-sm font-medium"
+                onClick={toggleTheme}
+                aria-label={texts.theme}
+              >
+                {texts.theme}: {theme === 'dark' ? texts.dark : texts.light}
+              </button>
+              <select
+                value={locale}
+                onChange={(event) => handleLocaleChange(event.target.value as 'en' | 'kh')}
+                className="hidden sm:inline-flex text-sm rounded-md border border-border bg-card px-3 py-1.5 text-foreground outline-none"
+                aria-label={texts.language}
+              >
+                <option value="en">EN</option>
+                <option value="kh">KH</option>
+              </select>
               <a
                 href="https://github.com/Dear0001"
                 target="_blank"
@@ -72,7 +173,7 @@ export default function Topbar() {
               </a>
               <span className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground">
                 <span className="status-dot-success" />
-                All client-side
+                {texts.allClient}
               </span>
               <button
                 className="btn-icon md:hidden"
@@ -89,7 +190,7 @@ export default function Topbar() {
       {mobileOpen && (
         <div className="fixed inset-0 z-40 md:hidden">
           <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
-          <div className="absolute top-14 left-0 right-0 bg-card border-b border-border p-4 flex flex-col gap-1 fade-in">
+          <div className="absolute top-14 left-0 right-0 bg-card border-b border-border p-4 flex flex-col gap-3 fade-in">
             {navLinks?.map((link) => {
               const isActive = pathname === link?.href;
               return (
@@ -106,6 +207,29 @@ export default function Topbar() {
                 </Link>
               );
             })}
+            <div className="flex flex-col gap-3 pt-2 border-t border-border">
+              <button
+                type="button"
+                className="btn-ghost w-full px-4 py-2 rounded-md text-left text-sm font-medium"
+                onClick={() => {
+                  toggleTheme();
+                  setMobileOpen(false);
+                }}
+              >
+                {texts.theme}: {theme === 'dark' ? texts.dark : texts.light}
+              </button>
+              <label className="flex items-center justify-between gap-3 px-4 py-2 rounded-md border border-border bg-background text-sm text-foreground">
+                <span>{texts.language}</span>
+                <select
+                  value={locale}
+                  onChange={(event) => handleLocaleChange(event.target.value as 'en' | 'kh')}
+                  className="bg-transparent text-sm text-foreground outline-none"
+                >
+                  <option value="en">EN</option>
+                  <option value="kh">KH</option>
+                </select>
+              </label>
+            </div>
           </div>
         </div>
       )}

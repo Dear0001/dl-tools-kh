@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { Tool } from '@/data/tools';
 import * as Diff from 'diff';
-import { GitCompare } from 'lucide-react';
+import { GitCompare, RotateCcw, ZoomIn, ZoomOut } from 'lucide-react';
 
 const SAMPLE_LEFT = `{
   "name": "DevToolkit",
@@ -38,6 +38,8 @@ export default function DiffPanel({ tool }: { tool: Tool }) {
   const [left, setLeft] = useState(SAMPLE_LEFT);
   const [right, setRight] = useState(SAMPLE_RIGHT);
   const [mode, setMode] = useState<'split' | 'unified'>('split');
+  const [leftZoom, setLeftZoom] = useState(13);
+  const [rightZoom, setRightZoom] = useState(13);
 
   const diffLines = useMemo((): DiffLine[] => {
     const changes = Diff.diffLines(left, right);
@@ -64,6 +66,10 @@ export default function DiffPanel({ tool }: { tool: Tool }) {
     unchanged: diffLines.filter((l) => l.type === 'unchanged').length,
   }), [diffLines]);
 
+  const adjustZoom = (setter: React.Dispatch<React.SetStateAction<number>>, current: number, delta: number) => {
+    setter(Math.min(24, Math.max(10, current + delta)));
+  };
+
   return (
     <div className="h-full flex flex-col">
       {/* Config */}
@@ -83,27 +89,53 @@ export default function DiffPanel({ tool }: { tool: Tool }) {
       </div>
 
       {/* Split input area */}
-      <div className="flex-shrink-0 grid grid-cols-2 gap-px bg-border border-b border-border" style={{ height: '35%' }}>
-        <div className="flex flex-col bg-input">
-          <div className="panel-header rounded-none border-0 border-b border-border">
+      <div className="flex-shrink-0 grid grid-cols-1 lg:grid-cols-2 gap-px bg-border border-b border-border min-h-[280px]">
+        <div className="flex flex-col bg-input min-h-0">
+          <div className="panel-header rounded-none border-0 border-b border-border flex-wrap gap-2">
             <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Original (A)</span>
+            <div className="ml-auto flex items-center gap-1">
+              <button className="btn-icon" onClick={() => adjustZoom(setLeftZoom, leftZoom, -1)} title="Zoom out original">
+                <ZoomOut size={12} />
+              </button>
+              <span className="min-w-10 text-center text-[11px] font-mono text-muted-foreground">{leftZoom}px</span>
+              <button className="btn-icon" onClick={() => adjustZoom(setLeftZoom, leftZoom, 1)} title="Zoom in original">
+                <ZoomIn size={12} />
+              </button>
+              <button className="btn-icon" onClick={() => setLeftZoom(13)} title="Reset original zoom">
+                <RotateCcw size={12} />
+              </button>
+            </div>
           </div>
           <textarea
             value={left}
             onChange={(e) => setLeft(e.target.value)}
             className="input-code flex-1 resize-none border-0 rounded-none bg-transparent focus:ring-0"
+            style={{ fontSize: `${leftZoom}px`, lineHeight: 1.6 }}
             spellCheck={false}
             placeholder="Paste original content here…"
           />
         </div>
-        <div className="flex flex-col bg-input">
-          <div className="panel-header rounded-none border-0 border-b border-border">
+        <div className="flex flex-col bg-input min-h-0">
+          <div className="panel-header rounded-none border-0 border-b border-border flex-wrap gap-2">
             <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Modified (B)</span>
+            <div className="ml-auto flex items-center gap-1">
+              <button className="btn-icon" onClick={() => adjustZoom(setRightZoom, rightZoom, -1)} title="Zoom out modified">
+                <ZoomOut size={12} />
+              </button>
+              <span className="min-w-10 text-center text-[11px] font-mono text-muted-foreground">{rightZoom}px</span>
+              <button className="btn-icon" onClick={() => adjustZoom(setRightZoom, rightZoom, 1)} title="Zoom in modified">
+                <ZoomIn size={12} />
+              </button>
+              <button className="btn-icon" onClick={() => setRightZoom(13)} title="Reset modified zoom">
+                <RotateCcw size={12} />
+              </button>
+            </div>
           </div>
           <textarea
             value={right}
             onChange={(e) => setRight(e.target.value)}
             className="input-code flex-1 resize-none border-0 rounded-none bg-transparent focus:ring-0"
+            style={{ fontSize: `${rightZoom}px`, lineHeight: 1.6 }}
             spellCheck={false}
             placeholder="Paste modified content here…"
           />
