@@ -1,9 +1,9 @@
 'use client';
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Tool } from '@/data/tools';
 import PanelLayout from '../PanelLayout';
 import CodeEditor from '../CodeEditor';
-import { Minimize2, Maximize2, ImageIcon } from 'lucide-react';
+import { Minimize2, ImageIcon } from 'lucide-react';
 
 type Status = 'idle' | 'success' | 'error';
 
@@ -14,6 +14,9 @@ interface PreviewItem {
   kind: 'image' | 'text';
 }
 
+/**
+ * Recursively parses any string values inside objects/arrays that represent valid JSON strings.
+ */
 function deepParseJsonStrings(value: unknown, depth = 0, maxDepth = 10): unknown {
   if (depth >= maxDepth) return value;
 
@@ -21,12 +24,30 @@ function deepParseJsonStrings(value: unknown, depth = 0, maxDepth = 10): unknown
     const trimmed = value.trim();
     if (!trimmed) return value;
 
-    try {
-      const parsed = JSON.parse(trimmed);
-      return deepParseJsonStrings(parsed, depth + 1, maxDepth);
-    } catch {
-      return value;
+    const tryParseCandidate = (candidate: string): unknown | null => {
+      try {
+        return deepParseJsonStrings(JSON.parse(candidate), depth + 1, maxDepth);
+      } catch {
+        return null;
+      }
+    };
+
+    // Only attempt to parse strings that actually look like JSON objects or arrays.
+    if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+      const parsed = tryParseCandidate(trimmed);
+      return parsed ?? value;
     }
+
+    // Also support JSON values that arrive wrapped in quotes, such as "{...}".
+    if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+      const inner = trimmed.slice(1, -1).trim();
+      if ((inner.startsWith('{') && inner.endsWith('}')) || (inner.startsWith('[') && inner.endsWith(']'))) {
+        const parsed = tryParseCandidate(inner);
+        return parsed ?? value;
+      }
+    }
+
+    return value;
   }
 
   if (Array.isArray(value)) {
@@ -179,11 +200,12 @@ function parseJsonLike(input: string): unknown {
   }
 
   // ---------------------------------------
-  // 1. Try normal JSON + normalization
+  // 1. Try normal JSON + normalization & Deep Parsing nested JSON strings
   // ---------------------------------------
   try {
     const parsed = JSON.parse(text);
-    const normalized = normalizeParsedJson(parsed);
+    const deepParsed = deepParseJsonStrings(parsed);
+    const normalized = normalizeParsedJson(deepParsed);
     if (hasJsonFragmentMarkers(normalized)) {
       return reconstructJsonFromFragments(normalized);
     }
@@ -191,7 +213,7 @@ function parseJsonLike(input: string): unknown {
   } catch {}
 
   // ---------------------------------------
-  // 2. Try a JSON string
+  // 2. Try a JSON string wrapping
   // ---------------------------------------
   try {
     const parsedString = JSON.parse(text);
@@ -207,7 +229,7 @@ function parseJsonLike(input: string): unknown {
   const parsed = parseLineBasedJson(lines);
 
   if (Object.keys(parsed).length > 0) {
-    return parsed;
+    return deepParseJsonStrings(parsed);
   }
 
   throw new Error('Unable to parse input');
@@ -298,7 +320,7 @@ function collectBase64Previews(value: unknown): PreviewItem[] {
 }
 
 export default function JsonFormatterPanel({ tool }: { tool: Tool }) {
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState('');
   const [output, setOutput] = useState('');
   const [status, setStatus] = useState<Status>('idle');
   const [error, setError] = useState('');
@@ -307,9 +329,10 @@ export default function JsonFormatterPanel({ tool }: { tool: Tool }) {
   const [previews, setPreviews] = useState<PreviewItem[]>([]);
 
   const formatJson = (value: unknown) => {
-    const sorted = sortKeys && value && typeof value === 'object' && !Array.isArray(value)
-      ? JSON.parse(JSON.stringify(value, Object.keys(value as Record<string, unknown>).sort()))
-      : value;
+    const sorted =
+      sortKeys && value && typeof value === 'object' && !Array.isArray(value)
+        ? JSON.parse(JSON.stringify(value, Object.keys(value as Record<string, unknown>).sort()))
+        : value;
     return JSON.stringify(sorted, null, indent);
   };
 
@@ -413,7 +436,9 @@ export default function JsonFormatterPanel({ tool }: { tool: Tool }) {
           <span className="text-xs text-muted-foreground">Sort keys</span>
         </label>
         <div className="flex items-center gap-1.5 ml-auto">
-          <button className="btn-ghost text-xs" onClick={validate}>Validate</button>
+          <button className="btn-ghost text-xs" onClick={validate}>
+            Validate
+          </button>
           <button className="btn-ghost text-xs" onClick={minify}>
             <Minimize2 size={12} />
             Minify
@@ -479,8 +504,16 @@ export default function JsonFormatterPanel({ tool }: { tool: Tool }) {
           outputText={output}
           outputStatus={status}
           errorMessage={error}
-          onClear={() => { setInput(''); setOutput(''); setStatus('idle'); setError(''); setPreviews([]); }}
-          onSwap={() => { if (output) setInput(output); }}
+          onClear={() => {
+            setInput('');
+            setOutput('');
+            setStatus('idle');
+            setError('');
+            setPreviews([]);
+          }}
+          onSwap={() => {
+            if (output) setInput(output);
+          }}
         />
       </div>
     </div>

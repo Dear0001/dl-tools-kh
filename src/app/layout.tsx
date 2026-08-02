@@ -11,10 +11,13 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: 'DevToolkit — Browser-Based Developer Tools',
+  title: 'DL DevToolkit — Browser-Based Developer Tools',
   description: 'A zero-install browser toolkit for developers: format, diff, convert, generate, and inspect code, data, and files entirely client-side.',
   icons: {
-    icon: [{ url: '/favicon.ico', type: 'image/x-icon' }],
+    icon: [
+      { url: 'https://avatars.githubusercontent.com/u/128213482?v=4&size=64', type: 'image/x-icon' },
+      { url: 'https://avatars.githubusercontent.com/u/128213482?v=4&size=64', type: 'image/png' },
+    ],
   },
 };
 
@@ -23,9 +26,9 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="km" className={GeistSans.variable} suppressHydrationWarning>
-      <body className={GeistSans.className} suppressHydrationWarning>
+      <body className={`${GeistSans.className} relative`} suppressHydrationWarning>
         <Topbar />
-        <main className="min-h-screen bg-background text-foreground">
+        <main className="relative min-h-screen bg-background text-foreground">
           {children}
         </main>
 

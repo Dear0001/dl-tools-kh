@@ -16,6 +16,7 @@ import YamlFormatterPanel from './tools/YamlFormatterPanel';
 import DiffPanel from './tools/DiffPanel';
 import UuidPanel from './tools/UuidPanel';
 import HashPanel from './tools/HashPanel';
+import PasswordGeneratorPanel from './tools/PasswordGeneratorPanel';
 import JwtPanel from './tools/JwtPanel';
 import UrlCodecPanel from './tools/UrlCodecPanel';
 import RegexPanel from './tools/RegexPanel';
@@ -43,6 +44,7 @@ const PANEL_MAP: Record<string, React.ComponentType<{ tool: Tool }>> = {
   'tool-java-diff': DiffPanel,
   'tool-uuid': UuidPanel,
   'tool-hash': HashPanel,
+  'tool-password-generator': PasswordGeneratorPanel,
   'tool-jwt-decoder': JwtPanel,
   'tool-url-codec': UrlCodecPanel,
   'tool-regex-tester': RegexPanel,

@@ -201,6 +201,15 @@ export const TOOLS: Tool[] = [
     icon: 'Hash',
   },
   {
+    id: 'tool-password-generator',
+    name: 'Password Generator',
+    description: 'Generate secure passwords with configurable length and character sets. Copy instantly.',
+    category: 'utilities',
+    tags: ['password', 'generate', 'secure', 'random'],
+    icon: 'LockKeyhole',
+    isNew: true,
+  },
+  {
     id: 'tool-jwt-decoder',
     name: 'JWT Decoder',
     description: 'Decode JWT tokens — inspect Header, Payload, and Signature. Checks expiry and claims.',

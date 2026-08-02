@@ -1,9 +1,10 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import AppLogo from '@/components/ui/AppLogo';
-import { Menu, X, Zap } from 'lucide-react';
+import { Menu, X, Zap, HandCoins } from 'lucide-react';
 
 // Inline GitHub SVG since brand icons were removed in lucide-react v1
 function GithubIcon({ size = 16 }: { size?: number }) {
@@ -24,6 +25,10 @@ const i18n = {
     dark: 'Dark',
     language: 'Language',
     free: 'Free',
+    support: 'Support',
+    supportTitle: 'Thank you for helping',
+    supportMessage: 'If you would like to support this project with a small contribution, please scan the QR code below to thank the person who is receiving payment.',
+    supportCta: 'Any amount is appreciated',
   },
   kh: {
     toolHub: 'មជ្ឈមណ្ឌលឧបករណ៍',
@@ -34,6 +39,10 @@ const i18n = {
     dark: 'ងងឹត',
     language: 'ភាសា',
     free: 'ឥតគិតថ្លៃ',
+    support: 'ជួយគាំទ្រ',
+    supportTitle: 'អរគុណចំពោះការជួយគាំទ្រ',
+    supportMessage: 'ប្រសិនបើអ្នកចង់គាំទ្រโปรเจកនេះដោយការបរិច្ចាគតិចតួច សូមស្កែន QR ខាងក្រោម។',
+    supportCta: 'ការបរិច្ចាគណាមួយក៏ទទួលបានអំណរគុណ',
   },
 };
 
@@ -44,6 +53,7 @@ export default function Topbar() {
   const [locale, setLocale] = useState<'en' | 'kh'>('kh');
   const [userSelectedTheme, setUserSelectedTheme] = useState(false);
   const [userSelectedLocale, setUserSelectedLocale] = useState(false);
+  const [supportOpen, setSupportOpen] = useState(false);
 
   useEffect(() => {
     try {
@@ -148,6 +158,15 @@ export default function Topbar() {
               <button
                 type="button"
                 className="btn-ghost hidden sm:inline-flex px-3 py-1.5 rounded-md text-sm font-medium"
+                onClick={() => setSupportOpen(true)}
+                aria-label={texts.support}
+              >
+                <HandCoins size={14} className="mr-2" />
+                {texts.support}
+              </button>
+              <button
+                type="button"
+                className="btn-ghost hidden sm:inline-flex px-3 py-1.5 rounded-md text-sm font-medium"
                 onClick={toggleTheme}
                 aria-label={texts.theme}
               >
@@ -186,6 +205,47 @@ export default function Topbar() {
           </div>
         </div>
       </header>
+      {supportOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-background/70 backdrop-blur-sm fade-in">
+          <div className="relative w-full max-w-md overflow-hidden rounded-3xl border border-border bg-card shadow-2xl slide-up">
+            <div className="absolute inset-0 overflow-hidden rounded-3xl bg-animated-background opacity-30" aria-hidden="true" />
+            <div className="relative">
+              <div className="flex items-center justify-between gap-2 border-b px-2 py-2 bg-gradient-to-r from-red-600 to-red-500 text-white">
+                <div>
+                  <h3 className="text-base font-semibold uppercase tracking-[0.2em]">Support</h3>
+                </div>
+                <button type="button" className="btn-icon text-white transition-transform duration-200 hover:scale-110" onClick={() => setSupportOpen(false)} aria-label="Close support modal">
+                  <X size={16} />
+                </button>
+              </div>
+              <div className="px-5 py-4">
+                <div className="rounded-[32px] border border-border bg-white p-5 shadow-card-hover transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_20px_70px_rgba(0,212,170,0.08)]">
+                  <div className="text-center">
+                    <p className="text-base font-semibold text-foreground">Thank you for supporting us!</p>
+                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                      If you want to send a small thank-you contribution, please scan the QR code below.
+                    </p>
+                  </div>
+                  <div className="relative mx-auto mt-6 flex w-full max-w-[280px] justify-center">
+                    <div className="absolute inset-0 rounded-[36px] bg-gradient-to-br from-red-200/40 via-transparent to-teal-100/30 blur-xl" />
+                    <div className="relative flex h-[240px] w-[240px] items-center justify-center overflow-hidden rounded-[28px] border border-border bg-[#f8f8f8] p-3 shadow-lg">
+                      <div className="absolute inset-0 rounded-[28px] border border-white/10 shadow-[0_0_0_1px_rgba(255,255,255,0.25)]" />
+                      <Image
+                        src="/assets/images/qr-code.jpg"
+                        alt="Support QR code"
+                        width={240}
+                        height={240}
+                        className="relative h-full w-full object-contain"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <p className="mt-4 text-sm font-medium text-foreground text-center">Any amount is appreciated.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Mobile drawer */}
       {mobileOpen && (
         <div className="fixed inset-0 z-40 md:hidden">
@@ -208,6 +268,19 @@ export default function Topbar() {
               );
             })}
             <div className="flex flex-col gap-3 pt-2 border-t border-border">
+              <button
+                type="button"
+                className="btn-ghost w-full px-4 py-2 rounded-md text-left text-sm font-medium"
+                onClick={() => {
+                  setSupportOpen(true);
+                  setMobileOpen(false);
+                }}
+              >
+                <span className="inline-flex items-center gap-2">
+                  <HandCoins size={14} />
+                  {texts.support}
+                </span>
+              </button>
               <button
                 type="button"
                 className="btn-ghost w-full px-4 py-2 rounded-md text-left text-sm font-medium"
