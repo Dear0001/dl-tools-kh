@@ -124,7 +124,9 @@ export default function Topbar() {
           <div className="flex items-center justify-between h-14">
             {/* Logo */}
             <Link href="/" className="flex items-center gap-2.5 group">
-              <AppLogo size={28} />
+              <div className="rounded-full border border-border/70 bg-white/80 p-0.5 shadow-sm ring-1 ring-black/5">
+                <AppLogo size={28} className="rounded-full overflow-hidden" />
+              </div>
               <span className="font-semibold text-base tracking-tight text-foreground group-hover:text-primary transition-colors duration-150">
                 ឧបករណ៍​កម្ពុជា
               </span>

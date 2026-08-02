@@ -15,8 +15,8 @@ export const metadata: Metadata = {
   description: 'A zero-install browser toolkit for developers: format, diff, convert, generate, and inspect code, data, and files entirely client-side.',
   icons: {
     icon: [
-      { url: 'https://avatars.githubusercontent.com/u/128213482?v=4&size=64', type: 'image/x-icon' },
-      { url: 'https://avatars.githubusercontent.com/u/128213482?v=4&size=64', type: 'image/png' },
+      { url: '/assets/images/app_logo.jpg', type: 'image/jpeg' },
+      { url: '/assets/images/app_logo.jpg', type: 'image/png' },
     ],
   },
 };
