@@ -16,52 +16,103 @@ interface PreviewItem {
 
 /**
  * Recursively parses any string values inside objects/arrays that represent valid JSON strings.
+ * This version prevents double-parsing by tracking which strings have already been parsed.
  */
-function deepParseJsonStrings(value: unknown, depth = 0, maxDepth = 10): unknown {
+function deepParseJsonStrings(value: unknown, depth = 0, maxDepth = 15, parsedSet = new Set<string>()): unknown {
   if (depth >= maxDepth) return value;
 
   if (typeof value === 'string') {
     const trimmed = value.trim();
     if (!trimmed) return value;
 
-    const tryParseCandidate = (candidate: string): unknown | null => {
-      try {
-        return deepParseJsonStrings(JSON.parse(candidate), depth + 1, maxDepth);
-      } catch {
-        return null;
-      }
-    };
+    // Check if we've already parsed this exact string to prevent infinite recursion
+    if (parsedSet.has(trimmed)) return value;
+    
+    // Only attempt to parse if it looks like JSON
+    const looksLikeJson = (trimmed.startsWith('{') && trimmed.endsWith('}')) || 
+                          (trimmed.startsWith('[') && trimmed.endsWith(']'));
 
-    // Only attempt to parse strings that actually look like JSON objects or arrays.
-    if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
-      const parsed = tryParseCandidate(trimmed);
-      return parsed ?? value;
+    if (!looksLikeJson) return value;
+
+    try {
+      // Mark this string as being parsed
+      parsedSet.add(trimmed);
+      const parsed = JSON.parse(trimmed);
+      // Recursively parse the result
+      return deepParseJsonStrings(parsed, depth + 1, maxDepth, parsedSet);
+    } catch {
+      return value;
     }
-
-    // Also support JSON values that arrive wrapped in quotes, such as "{...}".
-    if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
-      const inner = trimmed.slice(1, -1).trim();
-      if ((inner.startsWith('{') && inner.endsWith('}')) || (inner.startsWith('[') && inner.endsWith(']'))) {
-        const parsed = tryParseCandidate(inner);
-        return parsed ?? value;
-      }
-    }
-
-    return value;
   }
 
   if (Array.isArray(value)) {
-    return value.map((item) => deepParseJsonStrings(item, depth, maxDepth));
+    return value.map((item) => deepParseJsonStrings(item, depth + 1, maxDepth, parsedSet));
   }
 
   if (value && typeof value === 'object') {
-    return Object.entries(value as Record<string, unknown>).reduce((acc, [key, child]) => {
-      acc[key] = deepParseJsonStrings(child, depth, maxDepth);
-      return acc;
-    }, {} as Record<string, unknown>);
+    const result: Record<string, unknown> = {};
+    for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+      // Don't re-parse strings that are already valid JSON objects
+      if (typeof child === 'string' && 
+          (child.trim().startsWith('{') || child.trim().startsWith('[')) &&
+          parsedSet.has(child.trim())) {
+        result[key] = child;
+      } else {
+        result[key] = deepParseJsonStrings(child, depth + 1, maxDepth, parsedSet);
+      }
+    }
+    return result;
   }
 
   return value;
+}
+
+/**
+ * Specifically handles the apiResponse format where responseObj contains nested JSON
+ */
+function parseApiResponseWithNestedJson(input: string): unknown {
+  try {
+    const parsed = JSON.parse(input);
+    
+    // Helper to process an object and its children
+    function processObject(obj: any): any {
+      if (!obj || typeof obj !== 'object') return obj;
+      
+      if (Array.isArray(obj)) {
+        return obj.map(item => processObject(item));
+      }
+      
+      const result: any = {};
+      for (const [key, value] of Object.entries(obj)) {
+        if (typeof value === 'string') {
+          const trimmed = value.trim();
+          // Only parse if it looks like a JSON object or array
+          if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || 
+              (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+            try {
+              // Parse the string once
+              const parsedValue = JSON.parse(trimmed);
+              // Recursively process the parsed value
+              result[key] = processObject(parsedValue);
+              continue;
+            } catch {
+              // If parsing fails, keep as string
+              result[key] = value;
+              continue;
+            }
+          }
+        }
+        // Recursively process nested objects
+        result[key] = processObject(value);
+      }
+      return result;
+    }
+    
+    // Process the entire parsed object
+    return processObject(parsed);
+  } catch {
+    return null;
+  }
 }
 
 function unquoteJsonString(value: string): string {
@@ -200,7 +251,15 @@ function parseJsonLike(input: string): unknown {
   }
 
   // ---------------------------------------
-  // 1. Try normal JSON + normalization & Deep Parsing nested JSON strings
+  // 1. Try the specialized API response parser first
+  // ---------------------------------------
+  const apiResult = parseApiResponseWithNestedJson(text);
+  if (apiResult !== null) {
+    return apiResult;
+  }
+
+  // ---------------------------------------
+  // 2. Try normal JSON with deep parsing
   // ---------------------------------------
   try {
     const parsed = JSON.parse(text);
@@ -213,7 +272,7 @@ function parseJsonLike(input: string): unknown {
   } catch {}
 
   // ---------------------------------------
-  // 2. Try a JSON string wrapping
+  // 3. Try a JSON string wrapping
   // ---------------------------------------
   try {
     const parsedString = JSON.parse(text);
@@ -223,7 +282,7 @@ function parseJsonLike(input: string): unknown {
   } catch {}
 
   // ---------------------------------------
-  // 3. Parse key=value / key:value with nested fragments
+  // 4. Parse key=value / key:value with nested fragments
   // ---------------------------------------
   const lines = text.split(/\r?\n/);
   const parsed = parseLineBasedJson(lines);
@@ -408,7 +467,7 @@ export default function JsonFormatterPanel({ tool }: { tool: Tool }) {
 
   useEffect(() => {
     handleInputChange(input);
-  }, []);
+  }, [sortKeys, indent]);
 
   return (
     <div className="h-full flex flex-col">

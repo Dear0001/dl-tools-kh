@@ -35,6 +35,36 @@ const TAG_LABELS: Record<string, string> = {
 
 const NESTED_TLV_TAGS = new Set(['26', '27', '29', '40', '62']);
 
+// Known nested sub-tag schemas to display placeholders for missing subtags
+const NESTED_TLV_SCHEMA: Record<string, Record<string, string>> = {
+  '29': {
+    '00': 'IANA',
+    '01': 'Bakong ID',
+    '02': 'Merchant ID',
+    '03': 'Acquiring Bank',
+  },
+  '26': {
+    '00': 'Globally Unique Identifier',
+    '01': 'Payment Network Specific',
+  },
+  '27': {
+    '00': 'Globally Unique Identifier',
+    '01': 'Payment Network Specific',
+  },
+  '40': {
+    // generic template entries — show common placeholders
+    '00': 'Additional Data 00',
+    '01': 'Additional Data 01',
+  },
+  '62': {
+    '01': 'Bill Number',
+    '02': 'Mobile Number',
+    '03': 'Store Label',
+    '04': 'Reference',
+    '07': 'Terminal Label',
+  },
+};
+
 function crc16(data: string): string {
   let crc = 0xffff;
   for (let i = 0; i < data.length; i += 1) {
@@ -82,6 +112,40 @@ function renderTlvChildren(children: TlvTag[], level = 1): React.ReactNode {
   ));
 }
 
+function fillMissingChildren(tags: TlvTag[]) {
+  for (const tag of tags) {
+    if (tag.children) {
+      // if schema exists for this parent, ensure all schema subtags present (in order)
+      const schema = NESTED_TLV_SCHEMA[tag.tag];
+      if (schema) {
+        const existingByTag: Record<string, TlvTag> = {};
+        for (const c of tag.children) existingByTag[c.tag] = c;
+        const filled: TlvTag[] = [];
+        for (const [subTag, label] of Object.entries(schema)) {
+          if (existingByTag[subTag]) {
+            // recursively fill deeper children
+            if (existingByTag[subTag].children) fillMissingChildren([existingByTag[subTag]]);
+            filled.push(existingByTag[subTag]);
+          } else {
+            filled.push({ tag: subTag, length: 0, value: '', label, children: undefined });
+          }
+        }
+        // append any other children that weren't in the schema after the listed ones
+        for (const c of tag.children) {
+          if (!schema[c.tag]) {
+            if (c.children) fillMissingChildren([c]);
+            filled.push(c);
+          }
+        }
+        tag.children = filled;
+      } else {
+        // no schema: still recurse into existing children
+        fillMissingChildren(tag.children);
+      }
+    }
+  }
+}
+
 export default function QrReaderPanel({ tool }: { tool: Tool }) {
   const [result, setResult] = useState('');
   const [previewUrl, setPreviewUrl] = useState('');
@@ -122,6 +186,8 @@ export default function QrReaderPanel({ tool }: { tool: Tool }) {
       return;
     }
 
+    // Fill missing expected nested subtags so UI shows placeholders
+    fillMissingChildren(parsed);
     setTags(parsed);
     setParseError('');
 
