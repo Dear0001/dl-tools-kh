@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import jsQR from 'jsqr';
 import AppImage from '@/components/ui/AppImage';
 import VisibleUnicodeText, { hasInvisibleUnicode } from '../VisibleUnicodeText';
+import crc16 from './crc16';
 
 interface TlvTag {
   tag: string;
@@ -65,17 +66,6 @@ const NESTED_TLV_SCHEMA: Record<string, Record<string, string>> = {
     '07': 'Terminal Label',
   },
 };
-
-function crc16(data: string): string {
-  let crc = 0xffff;
-  for (let i = 0; i < data.length; i += 1) {
-    crc ^= data.charCodeAt(i) << 8;
-    for (let j = 0; j < 8; j += 1) {
-      crc = crc & 0x8000 ? (crc << 1) ^ 0x1021 : crc << 1;
-    }
-  }
-  return (crc & 0xffff).toString(16).toUpperCase().padStart(4, '0');
-}
 
 function parseTlv(data: string): TlvTag[] {
   const tags: TlvTag[] = [];
