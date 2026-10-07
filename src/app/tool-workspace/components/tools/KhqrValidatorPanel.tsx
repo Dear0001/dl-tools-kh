@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Tool } from '@/data/tools';
 import { CheckCircle2, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import VisibleUnicodeText, { hasInvisibleUnicode } from '../VisibleUnicodeText';
 
 // CRC16-CCITT
 function crc16(data: string): string {
@@ -81,7 +82,9 @@ function renderTlvChildren(children: TlvTag[], level: number): React.ReactNode {
         <span className="font-mono text-xs text-amber-400 w-8 flex-shrink-0 tabular-nums">{child.tag}</span>
         <span className="text-xs text-muted-foreground w-48 flex-shrink-0 truncate">{child.label}</span>
         <span className="text-xs text-muted-foreground w-6 flex-shrink-0 tabular-nums">{child.length}</span>
-        <span className="font-mono text-xs text-foreground flex-1 break-all">{child.value}</span>
+        <span className="font-mono text-xs text-foreground flex-1 break-all">
+          {child.tag === '59' ? <VisibleUnicodeText value={child.value} /> : child.value}
+        </span>
       </div>
       {child.children && renderTlvChildren(child.children, level + 1)}
     </div>
@@ -184,6 +187,11 @@ export default function KhqrValidatorPanel({ tool }: { tool: Tool }) {
               <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">TLV Tag Breakdown</span>
               <span className="text-xs text-muted-foreground">{tags.length} tags parsed</span>
             </div>
+            {tags.some((tag) => tag.tag === '59' && hasInvisibleUnicode(tag.value)) && (
+              <p className="px-4 py-2 text-xs text-muted-foreground border-b border-border">
+                Red markers show invisible characters in the merchant name; the original value is unchanged.
+              </p>
+            )}
             <div className="divide-y divide-border">
               {tags.map((tag, i) => (
                 <div key={`tlv-${i}-${tag.tag}`}>
@@ -191,7 +199,9 @@ export default function KhqrValidatorPanel({ tool }: { tool: Tool }) {
                     <span className="font-mono text-xs text-violet-400 w-8 flex-shrink-0 tabular-nums">{tag.tag}</span>
                     <span className="text-xs text-muted-foreground w-48 flex-shrink-0 truncate">{tag.label}</span>
                     <span className="text-xs text-muted-foreground w-6 flex-shrink-0 tabular-nums">{tag.length}</span>
-                    <span className="font-mono text-xs text-foreground flex-1 break-all">{tag.value}</span>
+                    <span className="font-mono text-xs text-foreground flex-1 break-all">
+                      {tag.tag === '59' ? <VisibleUnicodeText value={tag.value} /> : tag.value}
+                    </span>
                   </div>
                   {tag.children && renderTlvChildren(tag.children, 1)}
                 </div>
