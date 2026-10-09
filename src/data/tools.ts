@@ -140,7 +140,7 @@ export const TOOLS: Tool[] = [
   {
     id: 'tool-khqr-validator',
     name: 'KHQR Validator',
-    description: 'Decode and validate KHQR strings: TLV tag parsing, CRC-16 check, version & currency detection.',
+    description: 'Decode KHQR / EMV® QR payloads with TLV, CRC-16, currency, and dual-currency status.',
     category: 'qr',
     tags: ['khqr', 'validate', 'tlv', 'crc16', 'decode'],
     icon: 'ShieldCheck',
@@ -149,7 +149,7 @@ export const TOOLS: Tool[] = [
   {
     id: 'tool-qr-reader',
     name: 'QR Reader / Scanner',
-    description: 'Decode QR codes from uploaded images, clipboard paste (Ctrl+V), or live camera stream.',
+    description: 'Scan QR images or camera feeds and inspect EMV® tags, currency, CRC-16, and dual-currency status.',
     category: 'qr',
     tags: ['qr', 'reader', 'scanner', 'decode', 'camera'],
     icon: 'ScanLine',

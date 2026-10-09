@@ -1,9 +1,10 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Tool } from '@/data/tools';
 import { ArrowLeft, Settings2 } from 'lucide-react';
 import Link from 'next/link';
 import { CATEGORY_COLORS } from '@/data/tools';
+import { trackToolOpen } from '@/components/GoogleAnalytics';
 
 // Tool-specific panels
 import JsonFormatterPanel from './tools/JsonFormatterPanel';
@@ -60,6 +61,7 @@ const PANEL_MAP: Record<string, React.ComponentType<{ tool: Tool }>> = {
 
 export default function WorkspaceShell({ tool }: { tool: Tool }) {
   const [configOpen, setConfigOpen] = useState(false);
+  const trackedToolId = useRef('');
   const colors = CATEGORY_COLORS[tool.category];
   const PanelComponent = PANEL_MAP[tool.id] || GenericComingSoon;
 
@@ -71,6 +73,12 @@ export default function WorkspaceShell({ tool }: { tool: Tool }) {
     const next = [tool.id, ...recents.filter((r) => r !== tool.id)].slice(0, 8);
     localStorage.setItem('devtoolkit-recent', JSON.stringify(next));
   }, [tool.id]);
+
+  useEffect(() => {
+    if (trackedToolId.current === tool.id) return;
+    trackedToolId.current = tool.id;
+    trackToolOpen(tool);
+  }, [tool]);
 
   return (
     <div className="flex flex-col h-[calc(100vh-56px)]">

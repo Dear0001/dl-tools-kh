@@ -4,67 +4,15 @@ import { Tool } from '@/data/tools';
 import { CheckCircle2, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import VisibleUnicodeText, { hasInvisibleUnicode } from '../VisibleUnicodeText';
+import EmvQrSummary from './EmvQrSummary';
+import { getEmvQrDetails, type EmvTlvTag } from './emvQr';
 import crc16 from './crc16';
 
-interface TlvTag {
-  tag: string;
-  length: number;
-  value: string;
-  label: string;
-  children?: TlvTag[];
+function tlv(tag: string, value: string): string {
+  return `${tag}${value.length.toString().padStart(2, '0')}${value}`;
 }
 
-const TAG_LABELS: Record<string, string> = {
-  '00': 'Payload Format Indicator',
-  '01': 'Point of Initiation Method',
-  '26': 'Merchant Account Info (Visa)',
-  '27': 'Merchant Account Info (Mastercard)',
-  '29': 'Merchant Account Info (KHQR)',
-  '40': 'Additional Data Field Template',
-  '52': 'Merchant Category Code',
-  '53': 'Transaction Currency',
-  '54': 'Transaction Amount',
-  '55': 'Tip or Convenience Indicator',
-  '58': 'Country Code',
-  '59': 'Merchant Name',
-  '60': 'Merchant City',
-  '61': 'Postal Code',
-  '62': 'Additional Data Field',
-  '63': 'CRC',
-};
-
-const NESTED_TLV_TAGS = new Set(['26', '27', '29', '40', '62']);
-
-function tryParseNestedTlv(data: string): TlvTag[] | undefined {
-  const nested = parseTlv(data);
-  const parsedLength = nested.reduce((sum, tag) => sum + 4 + tag.length, 0);
-  return nested.length > 0 && parsedLength === data.length ? nested : undefined;
-}
-
-function parseTlv(data: string): TlvTag[] {
-  const tags: TlvTag[] = [];
-  let i = 0;
-  while (i < data.length - 4) {
-    const tag = data.slice(i, i + 2);
-    if (tag === '63') break;
-    const lenStr = data.slice(i + 2, i + 4);
-    const len = parseInt(lenStr, 10);
-    if (isNaN(len)) break;
-    const value = data.slice(i + 4, i + 4 + len);
-    const children = NESTED_TLV_TAGS.has(tag) ? tryParseNestedTlv(value) : undefined;
-    tags.push({
-      tag,
-      length: len,
-      value,
-      label: TAG_LABELS[tag] || `Tag ${tag}`,
-      children,
-    });
-    i += 4 + len;
-  }
-  return tags;
-}
-
-function renderTlvChildren(children: TlvTag[], level: number): React.ReactNode {
+function renderTlvChildren(children: EmvTlvTag[], level: number): React.ReactNode {
   return children.map((child, ci) => (
     <div key={`tlv-child-${level}-${ci}-${child.tag}`}>
       <div className={`flex items-start gap-3 px-4 py-2 transition-colors ${level % 2 === 1 ? 'bg-muted/10' : 'bg-muted/05'} ${level > 1 ? 'pl-10' : ''}`}>
@@ -80,43 +28,49 @@ function renderTlvChildren(children: TlvTag[], level: number): React.ReactNode {
   ));
 }
 
-const SAMPLE = 'bakong.io00020101021226480016bakong.io0110devtoolkit@wing0209MERCHANT010304WING52045999530384054052.5058KH5916DevToolkit Store6010Phnom Penh62280114INV-2026-0010310Main Branch0707POS-0016304';
+const SAMPLE_MERCHANT_INFO = `${tlv('00', 'bakong.io')}${tlv('01', 'devtoolkit@wing')}`;
+const SAMPLE_PAYLOAD = [
+  tlv('00', '01'),
+  tlv('01', '11'),
+  tlv('29', SAMPLE_MERCHANT_INFO),
+  tlv('52', '5999'),
+  tlv('53', '840'),
+  tlv('58', 'KH'),
+  tlv('59', 'DevToolkit Store'),
+  tlv('60', 'Phnom Penh'),
+  '6304',
+].join('');
+const SAMPLE = `${SAMPLE_PAYLOAD}${crc16(SAMPLE_PAYLOAD)}`;
 
 export default function KhqrValidatorPanel({ tool }: { tool: Tool }) {
   const [input, setInput] = useState(SAMPLE);
-  const [tags, setTags] = useState<TlvTag[]>([]);
+  const [tags, setTags] = useState<EmvTlvTag[]>([]);
   const [crcValid, setCrcValid] = useState<boolean | null>(null);
   const [isDynamic, setIsDynamic] = useState<boolean | null>(null);
   const [currency, setCurrency] = useState('');
   const [validated, setValidated] = useState(false);
+  const [validatedData, setValidatedData] = useState('');
 
   const validate = () => {
     try {
       const data = input.trim();
-
-      // CRC check
-      const crcIndex = data.lastIndexOf('6304');
-      if (crcIndex === -1) {
+      const details = getEmvQrDetails(data);
+      if (details.crcValid === null) {
         toast.error('CRC tag (63) not found in KHQR string');
         return;
       }
-      const withoutCrc = data.slice(0, crcIndex + 4);
-      const providedCrc = data.slice(crcIndex + 4, crcIndex + 8).toUpperCase();
-      const computedCrc = crc16(withoutCrc);
-      setCrcValid(providedCrc === computedCrc);
-
-      // Parse TLV
-      const parsed = parseTlv(data);
-      setTags(parsed);
+      setCrcValid(details.crcValid);
+      setTags(details.tags.filter((tag) => tag.tag !== '63'));
 
       // Detect dynamic vs static
-      const initMethod = parsed.find((t) => t.tag === '01');
-      setIsDynamic(initMethod?.value === '12');
+      const initMethod = details.tags.find((t) => t.tag === '01');
+      setIsDynamic(initMethod ? initMethod.value === '12' : null);
 
       // Currency
-      const currTag = parsed.find((t) => t.tag === '53');
+      const currTag = details.tags.find((t) => t.tag === '53');
       setCurrency(currTag?.value === '116' ? 'KHR (116)' : currTag?.value === '840' ? 'USD (840)' : currTag?.value || 'Unknown');
 
+      setValidatedData(data);
       setValidated(true);
     } catch (e) {
       toast.error('Failed to parse KHQR string — check format');
@@ -131,7 +85,10 @@ export default function KhqrValidatorPanel({ tool }: { tool: Tool }) {
           <label className="block text-xs text-muted-foreground font-medium mb-2">KHQR / EMVCo String</label>
           <textarea
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => {
+              setInput(e.target.value);
+              setValidated(false);
+            }}
             className="input-code w-full text-xs"
             rows={4}
             placeholder="Paste KHQR EMVCo string here… 000201010212…"
@@ -156,7 +113,9 @@ export default function KhqrValidatorPanel({ tool }: { tool: Tool }) {
               <div className={`w-2 h-2 rounded-full ${isDynamic ? 'bg-amber-400' : 'bg-violet-400'}`} />
               <div>
                 <p className="text-xs font-semibold text-foreground">Mode</p>
-                <p className="text-xs text-muted-foreground">{isDynamic ? 'Dynamic (12)' : 'Static (11)'}</p>
+                <p className="text-xs text-muted-foreground">
+                  {isDynamic === null ? 'Unknown' : isDynamic ? 'Dynamic (12)' : 'Static (11)'}
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-3 p-3.5 rounded-xl border border-border bg-card">
@@ -168,6 +127,8 @@ export default function KhqrValidatorPanel({ tool }: { tool: Tool }) {
             </div>
           </div>
         )}
+
+        {validated && <EmvQrSummary data={validatedData} />}
 
         {/* TLV breakdown */}
         {tags.length > 0 && (

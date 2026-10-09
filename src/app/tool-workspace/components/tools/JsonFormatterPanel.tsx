@@ -4,7 +4,10 @@ import { Tool } from '@/data/tools';
 import PanelLayout from '../PanelLayout';
 import CodeEditor from '../CodeEditor';
 import CodeOutput from '../CodeOutput';
-import { Minimize2, ImageIcon } from 'lucide-react';
+import { Minimize2, ImageIcon, QrCode, CheckCircle2, XCircle } from 'lucide-react';
+import { toast } from 'sonner';
+import jsQR from 'jsqr';
+import { getEmvQrDetails } from './emvQr';
 
 type Status = 'idle' | 'success' | 'error';
 
@@ -13,6 +16,18 @@ interface PreviewItem {
   value: string;
   previewUrl?: string;
   kind: 'image' | 'text';
+}
+
+interface DecodedQrItem {
+  path: string;
+  previewUrl: string;
+  payload?: string;
+  currencyCode?: string;
+  currencyName?: string;
+  hasDualCurrency?: boolean;
+  merchantAccountCount?: number;
+  crcValid?: boolean | null;
+  error?: string;
 }
 
 /**
@@ -386,6 +401,41 @@ function collectBase64Previews(value: unknown): PreviewItem[] {
   }, []);
 }
 
+function decodeQrImage(previewUrl: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = image.naturalWidth;
+        canvas.height = image.naturalHeight;
+        const context = canvas.getContext('2d');
+        if (!context) {
+          reject(new Error('Could not read image pixels.'));
+          return;
+        }
+
+        context.drawImage(image, 0, 0);
+        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(imageData.data, canvas.width, canvas.height, {
+          inversionAttempts: 'attemptBoth',
+        });
+
+        if (!code) {
+          reject(new Error('No QR code detected in this image.'));
+          return;
+        }
+
+        resolve(code.data);
+      } catch (error) {
+        reject(error instanceof Error ? error : new Error('Could not decode this image.'));
+      }
+    };
+    image.onerror = () => reject(new Error('Could not load this image.'));
+    image.src = previewUrl;
+  });
+}
+
 export default function JsonFormatterPanel({ tool }: { tool: Tool }) {
   const [input, setInput] = useState('');
   const [output, setOutput] = useState('');
@@ -394,6 +444,16 @@ export default function JsonFormatterPanel({ tool }: { tool: Tool }) {
   const [indent, setIndent] = useState(2);
   const [sortKeys, setSortKeys] = useState(false);
   const [previews, setPreviews] = useState<PreviewItem[]>([]);
+  const [decodedQrItems, setDecodedQrItems] = useState<DecodedQrItem[]>([]);
+  const [decodingQr, setDecodingQr] = useState(false);
+  const decodedEmvQrItems = decodedQrItems.filter((item) => item.hasDualCurrency !== undefined);
+  const hasDualCurrency = decodedEmvQrItems.some((item) => item.hasDualCurrency);
+  const dualCurrencySummary =
+    decodedEmvQrItems.length === 0
+      ? 'Could not determine'
+      : hasDualCurrency
+        ? 'Yes · tag 40 detected'
+        : 'No · single account';
 
   const formatJson = (value: unknown) => {
     const sorted =
@@ -411,11 +471,13 @@ export default function JsonFormatterPanel({ tool }: { tool: Tool }) {
       setStatus('success');
       setError('');
       setPreviews([]);
+      setDecodedQrItems([]);
     } catch {
       setOutput('');
       setStatus('idle');
       setError('');
       setPreviews([]);
+      setDecodedQrItems([]);
     }
   };
 
@@ -425,6 +487,7 @@ export default function JsonFormatterPanel({ tool }: { tool: Tool }) {
       const collected = collectBase64Previews(parsed);
       setOutput(formatJson(parsed));
       setPreviews(collected);
+      setDecodedQrItems([]);
       setStatus('success');
       setError('');
 
@@ -439,6 +502,67 @@ export default function JsonFormatterPanel({ tool }: { tool: Tool }) {
       setPreviews([]);
       setStatus('error');
       setError(msg);
+    }
+  };
+
+  const decodeQrImages = async () => {
+    const images = previews.filter(
+      (preview): preview is PreviewItem & { previewUrl: string } => Boolean(preview.previewUrl),
+    );
+    if (images.length === 0) {
+      toast.error('No supported Base64 images to scan');
+      return;
+    }
+
+    setDecodingQr(true);
+    setDecodedQrItems([]);
+    try {
+      const decodedItems = await Promise.all(
+        images.map(async (preview): Promise<DecodedQrItem> => {
+          try {
+            const payload = await decodeQrImage(preview.previewUrl);
+            const details = getEmvQrDetails(payload);
+            if (!details.isEmvQr) {
+              return {
+                path: preview.path,
+                previewUrl: preview.previewUrl,
+                payload,
+                error: 'QR decoded, but no EMV® currency tag was found.',
+              };
+            }
+
+            return {
+              path: preview.path,
+              previewUrl: preview.previewUrl,
+              payload,
+              currencyCode: details.currencyCode ?? undefined,
+              currencyName: details.currencyName ?? undefined,
+              hasDualCurrency: details.hasDualCurrency ?? undefined,
+              merchantAccountCount: details.merchantAccountCount,
+              crcValid: details.crcValid,
+            };
+          } catch (error) {
+            return {
+              path: preview.path,
+              previewUrl: preview.previewUrl!,
+              error: error instanceof Error ? error.message : 'Could not decode this image.',
+            };
+          }
+        }),
+      );
+
+      setDecodedQrItems(decodedItems);
+      const emvCount = decodedItems.filter((item) => item.currencyCode).length;
+      if (emvCount > 0) {
+        toast.success(`${emvCount} EMV® QR code${emvCount === 1 ? '' : 's'} decoded`);
+      } else {
+        toast.error('No EMV® QR codes found in the detected images');
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unexpected decoding error.';
+      toast.error(`Could not decode the detected images: ${message}`);
+    } finally {
+      setDecodingQr(false);
     }
   };
 
@@ -539,11 +663,23 @@ export default function JsonFormatterPanel({ tool }: { tool: Tool }) {
               </div>
               {previews.length > 0 && (
                 <div className="border-t border-border bg-secondary/20 p-3 space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                     <ImageIcon size={12} />
                     Base64 previews
                   </div>
-                  <div className="grid gap-2 md:grid-cols-2">
+                  {previews.some((preview) => preview.previewUrl) && (
+                    <button
+                      className="btn-ghost text-xs"
+                      onClick={decodeQrImages}
+                      disabled={decodingQr}
+                    >
+                      <QrCode size={13} />
+                      {decodingQr ? 'Decoding QR codes…' : 'Decode EMV® QR Codes'}
+                    </button>
+                  )}
+                </div>
+                <div className="grid gap-2 md:grid-cols-2">
                     {previews.map((preview) => (
                       <div key={preview.path} className="rounded-lg border border-border/70 bg-background/60 p-2">
                         <div className="mb-2 text-[11px] font-mono text-muted-foreground">{preview.path}</div>
@@ -561,6 +697,74 @@ export default function JsonFormatterPanel({ tool }: { tool: Tool }) {
                       </div>
                     ))}
                   </div>
+                  {decodedQrItems.length > 0 && (
+                    <section className="space-y-3 border-t border-border pt-3" aria-labelledby="emv-qr-heading">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <h3 id="emv-qr-heading" className="text-xs font-semibold uppercase tracking-wider text-foreground">
+                          EMV® QR Codes
+                        </h3>
+                        <div className="flex items-center gap-2 rounded-lg border border-border bg-background/60 px-3 py-1.5">
+                          {hasDualCurrency ? (
+                            <CheckCircle2 size={14} className="text-primary" />
+                          ) : (
+                            <XCircle size={14} className="text-muted-foreground" />
+                          )}
+                          <span className="text-xs text-muted-foreground">Dual-currency indicator:</span>
+                          <span className={`text-xs font-semibold ${hasDualCurrency ? 'text-primary' : 'text-foreground'}`}>
+                            {dualCurrencySummary}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="grid gap-3 lg:grid-cols-2">
+                        {decodedQrItems.map((item) => (
+                          <article
+                            key={item.path}
+                            className="grid gap-3 rounded-xl border border-border bg-background/50 p-3 sm:grid-cols-[112px_minmax(0,1fr)]"
+                          >
+                            <img
+                              src={item.previewUrl}
+                              alt={`Decoded QR image from ${item.path}`}
+                              className="mx-auto max-h-28 w-28 rounded-lg bg-white object-contain p-1"
+                            />
+                            <div className="min-w-0 space-y-2">
+                              <p className="truncate text-[11px] font-mono text-muted-foreground" title={item.path}>
+                                {item.path}
+                              </p>
+                              {item.currencyName ? (
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                                  <span className="font-semibold text-foreground">{item.currencyName} ({item.currencyCode})</span>
+                                  {item.crcValid !== null && item.crcValid !== undefined && (
+                                    <span className={item.crcValid ? 'text-primary' : 'text-red-400'}>
+                                      CRC {item.crcValid ? 'valid' : 'mismatch'}
+                                    </span>
+                                  )}
+                                </div>
+                              ) : (
+                                <p className="text-xs text-amber-400">{item.error}</p>
+                              )}
+                              {item.hasDualCurrency !== undefined && (
+                                <p className="text-xs text-muted-foreground">
+                                  {item.hasDualCurrency ? 'Dual currency · tag 40' : 'Single account · no tag 40'}
+                                  {item.merchantAccountCount !== undefined &&
+                                    ` · ${item.merchantAccountCount} merchant account template${item.merchantAccountCount === 1 ? '' : 's'}`}
+                                </p>
+                              )}
+                              {item.payload && (
+                                <details className="text-xs">
+                                  <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                                    Decoded EMV® payload
+                                  </summary>
+                                  <pre className="mt-2 max-h-28 overflow-auto whitespace-pre-wrap break-all rounded-md bg-black/20 p-2 font-mono text-[11px] text-foreground">
+                                    {item.payload}
+                                  </pre>
+                                </details>
+                              )}
+                            </div>
+                          </article>
+                        ))}
+                      </div>
+                    </section>
+                  )}
                 </div>
               )}
             </div>

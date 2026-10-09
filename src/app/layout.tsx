@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from 'next';
 import Script from 'next/script';
 import { GeistSans } from 'geist/font/sans';
 import Topbar from '@/components/Topbar';
+import GoogleAnalytics from '@/components/GoogleAnalytics';
 import '../styles/tailwind.css';
 
 export const viewport: Viewport = {
@@ -27,6 +28,7 @@ export default function RootLayout({
   return (
     <html lang="km" className={GeistSans.variable} suppressHydrationWarning>
       <body className={`${GeistSans.className} relative`} suppressHydrationWarning>
+        <GoogleAnalytics />
         <Topbar />
         <main className="relative min-h-screen bg-background text-foreground">
           {children}

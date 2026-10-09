@@ -6,36 +6,8 @@ import { toast } from 'sonner';
 import jsQR from 'jsqr';
 import AppImage from '@/components/ui/AppImage';
 import VisibleUnicodeText, { hasInvisibleUnicode } from '../VisibleUnicodeText';
-import crc16 from './crc16';
-
-interface TlvTag {
-  tag: string;
-  length: number;
-  value: string;
-  label: string;
-  children?: TlvTag[];
-}
-
-const TAG_LABELS: Record<string, string> = {
-  '00': 'Payload Format Indicator',
-  '01': 'Point of Initiation Method',
-  '26': 'Merchant Account Info',
-  '27': 'Merchant Account Info',
-  '29': 'Merchant Account Info (KHQR)',
-  '40': 'Additional Data Field Template',
-  '52': 'Merchant Category Code',
-  '53': 'Transaction Currency',
-  '54': 'Transaction Amount',
-  '55': 'Tip or Convenience Indicator',
-  '58': 'Country Code',
-  '59': 'Merchant Name',
-  '60': 'Merchant City',
-  '61': 'Postal Code',
-  '62': 'Additional Data Field',
-  '63': 'CRC',
-};
-
-const NESTED_TLV_TAGS = new Set(['26', '27', '29', '40', '62']);
+import { getEmvQrDetails, parseEmvTlv, type EmvTlvTag } from './emvQr';
+import EmvQrSummary from './EmvQrSummary';
 
 // Known nested sub-tag schemas to display placeholders for missing subtags
 const NESTED_TLV_SCHEMA: Record<string, Record<string, string>> = {
@@ -67,29 +39,7 @@ const NESTED_TLV_SCHEMA: Record<string, Record<string, string>> = {
   },
 };
 
-function parseTlv(data: string): TlvTag[] {
-  const tags: TlvTag[] = [];
-  let i = 0;
-  while (i + 4 <= data.length) {
-    const tag = data.slice(i, i + 2);
-    const lenStr = data.slice(i + 2, i + 4);
-    const len = parseInt(lenStr, 10);
-    if (Number.isNaN(len) || i + 4 + len > data.length) break;
-    const value = data.slice(i + 4, i + 4 + len);
-    const children = NESTED_TLV_TAGS.has(tag) ? parseTlv(value) : undefined;
-    tags.push({
-      tag,
-      length: len,
-      value,
-      label: TAG_LABELS[tag] || `Tag ${tag}`,
-      children,
-    });
-    i += 4 + len;
-  }
-  return tags;
-}
-
-function renderTlvChildren(children: TlvTag[], level = 1): React.ReactNode {
+function renderTlvChildren(children: EmvTlvTag[], level = 1): React.ReactNode {
   return children.map((child, index) => (
     <div key={`${child.tag}-${level}-${index}`}>
       <div className={`flex items-start gap-3 px-4 py-2 transition-colors ${level % 2 === 1 ? 'bg-muted/10' : 'bg-muted/05'} ${level > 1 ? 'pl-10' : ''}`}>
@@ -105,15 +55,15 @@ function renderTlvChildren(children: TlvTag[], level = 1): React.ReactNode {
   ));
 }
 
-function fillMissingChildren(tags: TlvTag[]) {
+function fillMissingChildren(tags: EmvTlvTag[]) {
   for (const tag of tags) {
     if (tag.children) {
       // if schema exists for this parent, ensure all schema subtags present (in order)
       const schema = NESTED_TLV_SCHEMA[tag.tag];
       if (schema) {
-        const existingByTag: Record<string, TlvTag> = {};
+        const existingByTag: Record<string, EmvTlvTag> = {};
         for (const c of tag.children) existingByTag[c.tag] = c;
-        const filled: TlvTag[] = [];
+        const filled: EmvTlvTag[] = [];
         for (const [subTag, label] of Object.entries(schema)) {
           if (existingByTag[subTag]) {
             // recursively fill deeper children
@@ -145,7 +95,7 @@ export default function QrReaderPanel({ tool }: { tool: Tool }) {
   const [scanning, setScanning] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
-  const [tags, setTags] = useState<TlvTag[]>([]);
+  const [tags, setTags] = useState<EmvTlvTag[]>([]);
   const [crcValid, setCrcValid] = useState<boolean | null>(null);
   const [parseError, setParseError] = useState<string>('');
   const fileRef = useRef<HTMLInputElement>(null);
@@ -171,7 +121,7 @@ export default function QrReaderPanel({ tool }: { tool: Tool }) {
       return;
     }
 
-    const parsed = parseTlv(data);
+    const parsed = parseEmvTlv(data);
     if (!parsed.length) {
       setTags([]);
       setParseError('No EMVCo/KHQR tag structure detected');
@@ -181,17 +131,10 @@ export default function QrReaderPanel({ tool }: { tool: Tool }) {
 
     // Fill missing expected nested subtags so UI shows placeholders
     fillMissingChildren(parsed);
-    setTags(parsed);
+    setTags(parsed.filter((tag) => tag.tag !== '63'));
     setParseError('');
 
-    const crcIndex = data.lastIndexOf('6304');
-    if (crcIndex !== -1 && data.length >= crcIndex + 8) {
-      const withoutCrc = data.slice(0, crcIndex + 4);
-      const providedCrc = data.slice(crcIndex + 4, crcIndex + 8).toUpperCase();
-      setCrcValid(providedCrc === crc16(withoutCrc));
-    } else {
-      setCrcValid(null);
-    }
+    setCrcValid(getEmvQrDetails(data).crcValid);
   }, []);
 
   const updateResult = useCallback(
@@ -442,6 +385,8 @@ export default function QrReaderPanel({ tool }: { tool: Tool }) {
             <p className="text-xs text-muted-foreground mt-2 tabular-nums">{result.length} characters</p>
           </div>
         )}
+
+        {result && tags.length > 0 && <EmvQrSummary data={result} />}
 
         {parseError && (
           <div className="flex items-start gap-2 p-3.5 rounded-xl bg-yellow-500/10 border border-yellow-500/20">
