@@ -127,7 +127,7 @@ export default function PanelLayout({
             </button>
           </div>
         </div>
-        <div className="flex-1 overflow-hidden bg-[#111118] border-x border-b border-border rounded-b-lg">
+        <div className="flex-1 overflow-hidden bg-background border-x border-b border-border rounded-b-lg">
           {outputPanel}
         </div>
       </div>

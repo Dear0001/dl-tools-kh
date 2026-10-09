@@ -65,36 +65,36 @@ function renderHighlightedLine(line: string, language: CodeLanguage, lineIndex: 
 
     const token = match[0];
     const next = line.slice(pattern.lastIndex);
-    let color = 'text-slate-300';
+    let color = 'code-token-default';
     const isMarkupLanguage = language === 'html' || language === 'xml';
     const isString = token.startsWith('"') || token.startsWith("'") || token.startsWith('`');
 
     if (token.startsWith('//') || token.startsWith('/*') || token.startsWith('<!--')) {
-      color = 'text-slate-500 italic';
+      color = 'code-token-comment';
     } else if (isString) {
       const isKey =
         (language === 'json' || language === 'yaml') && next.trimStart().startsWith(':');
-      color = isKey ? 'text-sky-300' : 'text-amber-300';
+      color = isKey ? 'code-token-key' : 'code-token-string';
     } else if (isMarkupLanguage && token.startsWith('<')) {
       inMarkup = true;
-      color = 'text-cyan-300';
+      color = 'code-token-markup';
     } else if (isMarkupLanguage && (token === '>' || token === '/>')) {
-      color = 'text-slate-500';
+      color = 'code-token-punctuation';
       inMarkup = false;
     } else if (/^\d/.test(token)) {
-      color = 'text-orange-300';
+      color = 'code-token-number';
     } else if (inMarkup && /^[\w:-]+$/.test(token)) {
-      color = 'text-emerald-300';
+      color = 'code-token-tag-name';
     } else if (KEYWORDS[language].has(token.toLowerCase())) {
-      color = language === 'json' || language === 'yaml' ? 'text-violet-300' : 'text-cyan-300';
+      color = language === 'json' || language === 'yaml' ? 'code-token-literal' : 'code-token-keyword';
     } else if (
       (language === 'css' && next.trimStart().startsWith(':')) ||
       ((language === 'javascript' || language === 'typescript' || language === 'java') &&
         next.trimStart().startsWith('('))
     ) {
-      color = 'text-violet-300';
+      color = 'code-token-function';
     } else if (/^[{}()[\],.:;=<>!?+*/%&|^~@#-]+$/.test(token)) {
-      color = 'text-slate-500';
+      color = 'code-token-punctuation';
     }
 
     parts.push(
@@ -138,7 +138,7 @@ export default function CodeOutput({ value, placeholder, language }: CodeOutputP
 
   return (
     <div
-      className="scrollbar-thin h-full overflow-auto py-3 font-mono-code text-[13px] leading-6"
+      className="scrollbar-thin h-full overflow-auto bg-background py-3 font-mono-code text-[13px] leading-6 text-foreground"
       role="region"
       aria-label="Code output"
     >
@@ -149,22 +149,22 @@ export default function CodeOutput({ value, placeholder, language }: CodeOutputP
 
           return (
             <div
-              className="group flex min-h-6 w-max min-w-full items-start gap-3 px-3 transition-colors hover:bg-white/[0.035]"
+              className="group flex min-h-6 w-max min-w-full items-start gap-3 px-3 transition-colors hover:bg-muted/50"
               key={lineNumber}
               role="group"
               aria-label={`Line ${lineNumber}`}
             >
               <span
-                className="sticky left-0 w-8 shrink-0 select-none bg-[#111118] pr-1 text-right text-[11px] tabular-nums text-slate-600"
+                className="sticky left-0 w-8 shrink-0 select-none bg-background pr-1 text-right text-[11px] tabular-nums text-muted-foreground"
                 aria-hidden="true"
               >
                 {lineNumber}
               </span>
-              <span className="whitespace-pre text-slate-300">
+              <span className="whitespace-pre text-foreground">
                 {line ? renderHighlightedLine(line, language, index) : ' '}
               </span>
               <button
-                className="sticky right-0 z-10 ml-auto mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded bg-[#111118] text-slate-500 opacity-0 transition-all hover:bg-white/10 hover:text-white focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary group-hover:opacity-100 group-focus-within:opacity-100"
+                className="sticky right-0 z-10 ml-auto mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded bg-background text-muted-foreground opacity-0 transition-all hover:bg-muted hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary group-hover:opacity-100 group-focus-within:opacity-100"
                 onClick={() => copyLine(line, lineNumber)}
                 type="button"
                 title={`Copy line ${lineNumber}`}

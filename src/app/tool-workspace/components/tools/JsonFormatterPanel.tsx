@@ -4,7 +4,7 @@ import { Tool } from '@/data/tools';
 import PanelLayout from '../PanelLayout';
 import CodeEditor from '../CodeEditor';
 import CodeOutput from '../CodeOutput';
-import { Minimize2, ImageIcon, QrCode, CheckCircle2, XCircle } from 'lucide-react';
+import { Minimize2, ImageIcon, QrCode, CheckCircle2, Copy, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import jsQR from 'jsqr';
 import { getEmvQrDetails } from './emvQr';
@@ -446,6 +446,7 @@ export default function JsonFormatterPanel({ tool }: { tool: Tool }) {
   const [previews, setPreviews] = useState<PreviewItem[]>([]);
   const [decodedQrItems, setDecodedQrItems] = useState<DecodedQrItem[]>([]);
   const [decodingQr, setDecodingQr] = useState(false);
+  const [copiedPayloadPath, setCopiedPayloadPath] = useState<string | null>(null);
   const decodedEmvQrItems = decodedQrItems.filter((item) => item.hasDualCurrency !== undefined);
   const hasDualCurrency = decodedEmvQrItems.some((item) => item.hasDualCurrency);
   const dualCurrencySummary =
@@ -461,6 +462,20 @@ export default function JsonFormatterPanel({ tool }: { tool: Tool }) {
         ? JSON.parse(JSON.stringify(value, Object.keys(value as Record<string, unknown>).sort()))
         : value;
     return JSON.stringify(sorted, null, indent);
+  };
+
+  const copyDecodedPayload = async (item: DecodedQrItem) => {
+    if (!item.payload) return;
+
+    try {
+      await navigator.clipboard.writeText(item.payload);
+      setCopiedPayloadPath(item.path);
+      toast.success('Decoded EMV® payload copied');
+      window.setTimeout(() => setCopiedPayloadPath(null), 1600);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Clipboard access was denied.';
+      toast.error(`Could not copy decoded payload: ${message}`);
+    }
   };
 
   const handleInputChange = (value: string) => {
@@ -687,7 +702,7 @@ export default function JsonFormatterPanel({ tool }: { tool: Tool }) {
                           <img
                             src={preview.previewUrl}
                             alt={preview.path}
-                            className="max-h-32 w-full rounded-md border border-border object-contain bg-black/20"
+                            className="max-h-32 w-full rounded-md border border-border object-contain bg-muted/50"
                           />
                         ) : (
                           <div className="rounded-md border border-dashed border-border/60 p-2 text-[11px] text-muted-foreground">
@@ -754,7 +769,19 @@ export default function JsonFormatterPanel({ tool }: { tool: Tool }) {
                                   <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
                                     Decoded EMV® payload
                                   </summary>
-                                  <pre className="mt-2 max-h-28 overflow-auto whitespace-pre-wrap break-all rounded-md bg-black/20 p-2 font-mono text-[11px] text-foreground">
+                                  <button
+                                    type="button"
+                                    className="btn-ghost mt-2 text-xs"
+                                    onClick={() => copyDecodedPayload(item)}
+                                  >
+                                    {copiedPayloadPath === item.path ? (
+                                      <CheckCircle2 size={13} className="text-primary" />
+                                    ) : (
+                                      <Copy size={13} />
+                                    )}
+                                    {copiedPayloadPath === item.path ? 'Copied' : 'Copy payload'}
+                                  </button>
+                                  <pre className="mt-2 max-h-28 overflow-auto whitespace-pre-wrap break-all rounded-md bg-muted/50 p-2 font-mono text-[11px] text-foreground">
                                     {item.payload}
                                   </pre>
                                 </details>

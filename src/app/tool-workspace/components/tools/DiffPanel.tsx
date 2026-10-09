@@ -143,7 +143,7 @@ export default function DiffPanel({ tool }: { tool: Tool }) {
       </div>
 
       {/* Diff output */}
-      <div className="flex-1 overflow-auto scrollbar-thin bg-[#111118] p-0">
+      <div className="flex-1 overflow-auto scrollbar-thin bg-background p-0">
         <div className="font-mono text-xs leading-relaxed">
           {diffLines.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-32 gap-2 text-muted-foreground">
