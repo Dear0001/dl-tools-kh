@@ -13,13 +13,13 @@ export interface Tool {
   isNew?: boolean;
 }
 
-export const CATEGORIES: { id: ToolCategory; label: string; icon: string; color: string; count?: number }[] = [
-  { id: 'formatters', label: 'Formatters', icon: 'FileCode2', color: 'text-sky-400', count: 8 },
-  { id: 'diff', label: 'Diff & Compare', icon: 'GitCompare', color: 'text-amber-400', count: 4 },
-  { id: 'qr', label: 'QR & KHQR', icon: 'QrCode', color: 'text-primary', count: 3 },
-  { id: 'image', label: 'Image & Base64', icon: 'ImageIcon', color: 'text-pink-400', count: 3 },
-  { id: 'utilities', label: 'Utilities', icon: 'Wrench', color: 'text-violet-400', count: 6 },
-  { id: 'generators', label: 'Generators', icon: 'Sparkles', color: 'text-orange-400', count: 5 },
+export const CATEGORIES: { id: ToolCategory; label: string; icon: string; color: string }[] = [
+  { id: 'formatters', label: 'Formatters', icon: 'FileCode2', color: 'text-sky-400' },
+  { id: 'diff', label: 'Diff & Compare', icon: 'GitCompare', color: 'text-amber-400' },
+  { id: 'qr', label: 'QR & KHQR', icon: 'QrCode', color: 'text-primary' },
+  { id: 'image', label: 'Image & Base64', icon: 'ImageIcon', color: 'text-pink-400' },
+  { id: 'utilities', label: 'Utilities', icon: 'Wrench', color: 'text-violet-400' },
+  { id: 'generators', label: 'Generators', icon: 'Sparkles', color: 'text-orange-400' },
 ];
 
 export const TOOLS: Tool[] = [

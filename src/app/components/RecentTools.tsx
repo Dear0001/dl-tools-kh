@@ -5,53 +5,61 @@ import { History, X } from 'lucide-react';
 import { TOOLS } from '@/data/tools';
 import { CATEGORY_COLORS } from '@/data/tools';
 
-const DEFAULT_RECENT = ['tool-json-formatter', 'tool-uuid', 'tool-jwt-decoder', 'tool-sql-formatter', 'tool-json-to-ts'];
-
 export default function RecentTools() {
-  const [recents, setRecents] = useState<string[]>([]);
+  const [recents, setRecents] = useState<string[] | null>(null);
 
   useEffect(() => {
-    // Backend integration point: load from localStorage or user session
     const stored = localStorage.getItem('devtoolkit-recent');
-    setRecents(stored ? JSON.parse(stored) : DEFAULT_RECENT);
+    setRecents(stored ? JSON.parse(stored) : []);
   }, []);
 
   const remove = (id: string) => {
-    const next = recents.filter((r) => r !== id);
+    const next = (recents ?? []).filter((recentId) => recentId !== id);
     setRecents(next);
     localStorage.setItem('devtoolkit-recent', JSON.stringify(next));
   };
 
-  const tools = recents.map((id) => TOOLS.find((t) => t.id === id)).filter(Boolean) as typeof TOOLS;
-
-  if (tools.length === 0) return null;
+  const tools = (recents ?? [])
+    .map((id) => TOOLS.find((tool) => tool.id === id))
+    .filter((tool): tool is (typeof TOOLS)[number] => Boolean(tool));
 
   return (
-    <div className="flex items-center gap-3 flex-wrap">
-      <div className="flex items-center gap-1.5 text-xs text-muted-foreground flex-shrink-0">
-        <History size={13} />
-        Recent:
+    <div>
+      <div className="mb-3 flex items-center gap-2">
+        <History size={14} className="text-muted-foreground" />
+        <h2 className="text-sm font-semibold text-foreground">Recently opened</h2>
       </div>
-      {tools.map((tool) => {
-        const colors = CATEGORY_COLORS[tool.category];
-        return (
-          <div key={`recent-${tool.id}`} className="group flex items-center gap-1">
-            <Link
-              href={`/tool-workspace?tool=${tool.id}`}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium ${colors.bg} ${colors.text} border ${colors.border} hover:brightness-110 transition-all duration-150`}
-            >
-              {tool.name}
-            </Link>
-            <button
-              onClick={() => remove(tool.id)}
-              className="opacity-0 group-hover:opacity-100 btn-icon p-0.5 transition-opacity duration-150"
-              aria-label={`Remove ${tool.name} from recent`}
-            >
-              <X size={11} />
-            </button>
-          </div>
-        );
-      })}
+      {recents === null ? (
+        <div className="h-8 w-48 animate-pulse rounded-md bg-muted/50" aria-label="Loading recent tools" />
+      ) : tools.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {tools.map((tool) => {
+            const colors = CATEGORY_COLORS[tool.category];
+            return (
+              <div key={`recent-${tool.id}`} className="group flex items-center rounded-md border border-border bg-card">
+                <Link
+                  href={`/tool-workspace?tool=${tool.id}`}
+                  className="rounded-l-md px-3 py-2 text-sm font-medium text-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                >
+                  {tool.name}
+                </Link>
+                <span className={`mx-1 h-1.5 w-1.5 rounded-full ${colors.bg}`} aria-hidden="true" />
+                <button
+                  onClick={() => remove(tool.id)}
+                  className="btn-icon h-8 w-8 rounded-l-none"
+                  aria-label={`Remove ${tool.name} from recent tools`}
+                >
+                  <X size={13} />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          Tools you open will appear here for quick access.
+        </p>
+      )}
     </div>
   );
 }

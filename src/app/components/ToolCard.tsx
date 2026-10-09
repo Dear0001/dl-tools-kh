@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
   Braces, FileCode2, Code2, Palette, Database, AlignLeft, FileText,
   GitCompare, FileDiff, Code, QrCode, ShieldCheck, ScanLine,
@@ -8,7 +8,7 @@ import {
   Link2, SearchCode, Clock, Sparkles, FileCode, Terminal, TableProperties,
   ArrowRight, Star, Zap
 } from 'lucide-react';
-import { Tool, CATEGORY_COLORS } from '@/data/tools';
+import { Tool, CATEGORY_COLORS, CATEGORIES } from '@/data/tools';
 
 const ICON_MAP: Record<string, React.ElementType> = {
   Braces, FileCode2, Code2, Palette, Database, AlignLeft, FileText,
@@ -18,26 +18,19 @@ const ICON_MAP: Record<string, React.ElementType> = {
 };
 
 export default function ToolCard({ tool }: { tool: Tool }) {
-  const router = useRouter();
   const colors = CATEGORY_COLORS[tool.category];
   const IconComponent = ICON_MAP[tool.icon] || Braces;
-
-  const launch = () => {
-    router.push(`/tool-workspace?tool=${tool.id}`);
-  };
+  const categoryLabel = CATEGORIES.find((category) => category.id === tool.category)?.label ?? tool.category;
 
   return (
-    <div
-      className="group relative bg-card border border-border rounded-xl p-5 flex flex-col gap-3 cursor-pointer card-glow-hover"
-      onClick={launch}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => e.key === 'Enter' && launch()}
+    <Link
+      href={`/tool-workspace?tool=${tool.id}`}
+      className="group relative flex min-h-44 flex-col gap-3 rounded-xl border border-border bg-card p-5 transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       aria-label={`Open ${tool.name}`}
     >
       {/* Badges */}
       <div className="flex items-start justify-between gap-2">
-        <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${colors.bg} border ${colors.border}`}>
+        <div className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg border ${colors.bg} ${colors.border}`}>
           <IconComponent size={17} className={colors.text} />
         </div>
         <div className="flex items-center gap-1.5 flex-wrap justify-end">
@@ -58,24 +51,24 @@ export default function ToolCard({ tool }: { tool: Tool }) {
 
       {/* Content */}
       <div className="flex-1">
-        <h3 className="text-sm font-semibold text-foreground mb-1.5 group-hover:text-primary transition-colors duration-150">
+        <h3 className="mb-1.5 text-sm font-semibold text-foreground transition-colors duration-150 group-hover:text-primary">
           {tool.name}
         </h3>
-        <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
+        <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
           {tool.description}
         </p>
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between pt-1 border-t border-border">
-        <span className={`tool-category-badge ${colors.bg} ${colors.text} border ${colors.border}`}>
-          {tool.category}
+      <div className="flex items-center justify-between border-t border-border pt-3">
+        <span className={`tool-category-badge border ${colors.bg} ${colors.text} ${colors.border}`}>
+          {categoryLabel}
         </span>
-        <span className="flex items-center gap-1 text-xs text-muted-foreground group-hover:text-primary transition-colors duration-150">
+        <span className="flex items-center gap-1 text-xs text-muted-foreground transition-colors duration-150 group-hover:text-primary">
           Open
           <ArrowRight size={11} className="group-hover:translate-x-0.5 transition-transform duration-150" />
         </span>
       </div>
-    </div>
+    </Link>
   );
 }

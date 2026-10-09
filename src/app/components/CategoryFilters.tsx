@@ -2,7 +2,7 @@
 import React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Braces, GitCompare, QrCode, ImageIcon, Wrench, Sparkles, LayoutGrid } from 'lucide-react';
-import { CATEGORIES, ToolCategory } from '../../data/tools';
+import { CATEGORIES, TOOLS, ToolCategory } from '../../data/tools';
 
 const ICON_MAP: Record<string, React.ReactNode> = {
   FileCode2: <Braces size={14} />,
@@ -29,25 +29,28 @@ export default function CategoryFilters() {
   };
 
   return (
-    <div className="flex flex-wrap gap-2 mb-6">
+    <div role="group" aria-label="Filter tools by collection" className="mb-5 flex flex-wrap gap-2">
       <button
         onClick={() => setCategory('all')}
-        className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm font-medium border transition-all duration-150 ${
-          active === 'all' ?'bg-foreground text-background border-foreground' :'bg-transparent text-muted-foreground border-border hover:border-foreground/30 hover:text-foreground'
+        aria-pressed={active === 'all'}
+        className={`flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+          active === 'all' ?'border-foreground bg-foreground text-background' :'border-border bg-transparent text-muted-foreground hover:border-foreground/30 hover:text-foreground'
         }`}
       >
         <LayoutGrid size={13} />
         All Tools
-        <span className="tabular-nums text-xs opacity-60 ml-0.5">29</span>
+        <span className="ml-0.5 tabular-nums text-xs opacity-60">{TOOLS.length}</span>
       </button>
 
       {CATEGORIES.map((cat) => {
         const isActive = active === cat.id;
+        const count = TOOLS.filter((tool) => tool.category === cat.id).length;
         return (
           <button
             key={`cat-filter-${cat.id}`}
             onClick={() => setCategory(cat.id)}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm font-medium border transition-all duration-150 ${
+            aria-pressed={isActive}
+            className={`flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
               isActive
                 ? `bg-muted border-border text-foreground`
                 : 'bg-transparent text-muted-foreground border-border hover:border-foreground/30 hover:text-foreground'
@@ -55,7 +58,7 @@ export default function CategoryFilters() {
           >
             <span className={isActive ? cat.color : ''}>{ICON_MAP[cat.icon]}</span>
             {cat.label}
-            <span className="tabular-nums text-xs opacity-60 ml-0.5">{cat.count}</span>
+            <span className="ml-0.5 tabular-nums text-xs opacity-60">{count}</span>
           </button>
         );
       })}

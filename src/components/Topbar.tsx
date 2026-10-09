@@ -120,17 +120,17 @@ export default function Topbar() {
   return (
     <>
       <header className="sticky top-0 z-50 w-full border-b border-border bg-background/90 backdrop-blur-md">
-        <div className="w-full max-w-screen-2xl mx-auto px-6 lg:px-8 xl:px-10 2xl:px-16">
-          <div className="flex items-center justify-between h-14">
+        <div className="mx-auto w-full max-w-screen-2xl px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-16">
+          <div className="flex h-14 items-center justify-between gap-3">
             {/* Logo */}
-            <Link href="/" className="flex items-center gap-2.5 group">
+            <Link href="/" className="group flex min-w-0 items-center gap-2.5">
               <div className="rounded-full border border-border/70 bg-white/80 p-0.5 shadow-sm ring-1 ring-black/5">
                 <AppLogo size={28} className="rounded-full overflow-hidden" />
               </div>
-              <span className="font-semibold text-base tracking-tight text-foreground group-hover:text-primary transition-colors duration-150">
+              <span className="whitespace-nowrap text-sm font-semibold tracking-tight text-foreground transition-colors duration-150 group-hover:text-primary sm:text-base">
                 ឧបករណ៍​កម្ពុជា
               </span>
-              <span className="hidden sm:inline-flex items-center gap-1 text-2xs font-semibold text-primary bg-primary/10 border border-primary/20 rounded px-1.5 py-0.5 tracking-wider uppercase">
+              <span className="hidden items-center gap-1 rounded border border-primary/20 bg-primary/10 px-1.5 py-0.5 text-2xs font-semibold uppercase tracking-wider text-primary lg:inline-flex">
                 <Zap size={9} />
                 {texts.free}
               </span>
@@ -156,10 +156,10 @@ export default function Topbar() {
             </nav>
 
             {/* Right actions */}
-            <div className="flex items-center gap-2">
+            <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
               <button
                 type="button"
-                className="btn-ghost hidden sm:inline-flex px-3 py-1.5 rounded-md text-sm font-medium"
+                className="btn-ghost hidden rounded-md px-3 py-1.5 text-sm font-medium lg:inline-flex"
                 onClick={() => setSupportOpen(true)}
                 aria-label={texts.support}
               >
@@ -168,7 +168,7 @@ export default function Topbar() {
               </button>
               <button
                 type="button"
-                className="btn-ghost hidden sm:inline-flex px-3 py-1.5 rounded-md text-sm font-medium"
+                className="btn-ghost hidden rounded-md px-3 py-1.5 text-sm font-medium lg:inline-flex"
                 onClick={toggleTheme}
                 aria-label={texts.theme}
               >
@@ -177,7 +177,7 @@ export default function Topbar() {
               <select
                 value={locale}
                 onChange={(event) => handleLocaleChange(event.target.value as 'en' | 'kh')}
-                className="hidden sm:inline-flex text-sm rounded-md border border-border bg-card px-3 py-1.5 text-foreground outline-none"
+                className="hidden rounded-md border border-border bg-card px-3 py-1.5 text-sm text-foreground outline-none md:inline-flex"
                 aria-label={texts.language}
               >
                 <option value="en">EN</option>
@@ -187,19 +187,22 @@ export default function Topbar() {
                 href="https://github.com/Dear0001"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="btn-icon hidden sm:flex"
+                className="btn-icon hidden lg:flex"
                 aria-label="View on GitHub"
               >
                 <GithubIcon size={16} />
               </a>
-              <span className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span className="hidden items-center gap-1.5 text-xs text-muted-foreground xl:flex">
                 <span className="status-dot-success" />
                 {texts.allClient}
               </span>
               <button
+                type="button"
                 className="btn-icon md:hidden"
                 onClick={() => setMobileOpen(!mobileOpen)}
                 aria-label="Toggle menu"
+                aria-expanded={mobileOpen}
+                aria-controls="mobile-navigation"
               >
                 {mobileOpen ? <X size={18} /> : <Menu size={18} />}
               </button>
@@ -252,7 +255,7 @@ export default function Topbar() {
       {mobileOpen && (
         <div className="fixed inset-0 z-40 md:hidden">
           <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
-          <div className="absolute top-14 left-0 right-0 bg-card border-b border-border p-4 flex flex-col gap-3 fade-in">
+          <div id="mobile-navigation" className="absolute top-14 left-0 right-0 flex flex-col gap-3 border-b border-border bg-card p-4 fade-in">
             {navLinks?.map((link) => {
               const isActive = pathname === link?.href;
               return (

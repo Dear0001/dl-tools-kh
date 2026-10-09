@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Search } from 'lucide-react';
 import { TOOLS } from '@/data/tools';
 
@@ -9,7 +9,6 @@ export default function HeroSearch() {
   const [results, setResults] = useState<typeof TOOLS>([]);
   const [open, setOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const router = useRouter();
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -40,57 +39,73 @@ export default function HeroSearch() {
         t.tags.some((tag) => tag.includes(q))
     ).slice(0, 6);
     setResults(filtered);
-    setOpen(filtered.length > 0);
+    setOpen(true);
   }, [query]);
 
-  const handleSelect = (toolId: string) => {
+  const handleSelect = () => {
     setQuery('');
     setOpen(false);
-    router.push(`/tool-workspace?tool=${toolId}`);
   };
 
   return (
-    <div className="relative max-w-xl">
+    <div
+      className="relative max-w-xl"
+      onBlur={(event) => {
+        const nextTarget = event.relatedTarget;
+        if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) {
+          setOpen(false);
+        }
+      }}
+    >
       <div className="relative">
         <Search size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
         <input
           ref={inputRef}
           type="text"
           className="search-input"
-          placeholder="Search tools… or press / to focus"
+          placeholder="Search tools by name or task…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => query && setOpen(true)}
-          onBlur={() => setTimeout(() => setOpen(false), 150)}
           aria-label="Search developer tools"
-          aria-autocomplete="list"
           aria-expanded={open}
+          aria-controls="tool-search-results"
         />
         <span className="kbd absolute right-3.5 top-1/2 -translate-y-1/2">/</span>
       </div>
 
-      {open && results.length > 0 && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-xl shadow-card-hover z-50 overflow-hidden fade-in">
-          {results.map((tool) => (
-            <button
-              key={tool.id}
-              className="w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-muted transition-colors duration-100 border-b border-border last:border-b-0"
-              onMouseDown={() => handleSelect(tool.id)}
-            >
-              <div className="mt-0.5 w-6 h-6 flex items-center justify-center rounded bg-muted flex-shrink-0">
-                <span className="text-xs text-muted-foreground font-mono">{tool.name.charAt(0)}</span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-foreground">{tool.name}</span>
-                  {tool.isNew && (
-                    <span className="tool-category-badge bg-primary/10 text-primary border border-primary/20">New</span>
-                  )}
+      {open && query.trim() && (
+        <div
+          id="tool-search-results"
+          className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-xl border border-border bg-card shadow-card-hover fade-in"
+        >
+          {results.length > 0 ? (
+            results.map((tool) => (
+              <Link
+                key={tool.id}
+                href={`/tool-workspace?tool=${tool.id}`}
+                onClick={handleSelect}
+                className="flex items-start gap-3 border-b border-border px-4 py-3 text-left transition-colors duration-100 last:border-b-0 hover:bg-muted focus-visible:bg-muted focus-visible:outline-none"
+              >
+                <div className="mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded bg-muted">
+                  <span className="font-mono text-xs text-muted-foreground">{tool.name.charAt(0)}</span>
                 </div>
-                <p className="text-xs text-muted-foreground truncate mt-0.5">{tool.description}</p>
-              </div>
-            </button>
-          ))}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-foreground">{tool.name}</span>
+                    {tool.isNew && (
+                      <span className="tool-category-badge border border-primary/20 bg-primary/10 text-primary">New</span>
+                    )}
+                  </div>
+                  <p className="mt-0.5 truncate text-xs text-muted-foreground">{tool.description}</p>
+                </div>
+              </Link>
+            ))
+          ) : (
+            <p className="px-4 py-3 text-sm text-muted-foreground">
+              No matching tools. Try a different name or keyword.
+            </p>
+          )}
         </div>
       )}
     </div>

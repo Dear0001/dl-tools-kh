@@ -1,33 +1,40 @@
 'use client';
 import React, { Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import ToolCard from './ToolCard';
-import { TOOLS, ToolCategory } from '@/data/tools';
+import { TOOLS, ToolCategory, CATEGORIES } from '@/data/tools';
 
 function ToolGridInner() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const cat = searchParams.get('cat') as ToolCategory | null;
-
-  const filtered = cat ? TOOLS.filter((t) => t.category === cat) : TOOLS;
+  const category = CATEGORIES.find((item) => item.id === cat);
+  const filtered = category ? TOOLS.filter((tool) => tool.category === category.id) : cat ? [] : TOOLS;
 
   if (filtered.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-24 text-center">
-        <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
-          <span className="text-2xl">🔍</span>
-        </div>
-        <h3 className="text-base font-semibold text-foreground mb-1">No tools in this category</h3>
-        <p className="text-sm text-muted-foreground">Try selecting a different category or clearing the filter.</p>
+      <div className="flex flex-col items-start rounded-xl border border-dashed border-border bg-card/50 px-5 py-8">
+        <h3 className="text-base font-semibold text-foreground">No tools found in this collection</h3>
+        <p className="mt-1 text-sm text-muted-foreground">Choose another collection or view all tools.</p>
+        <button type="button" onClick={() => router.push('/')} className="btn-primary mt-4">
+          Show all tools
+        </button>
       </div>
     );
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-4">
-      {filtered.map((tool) => (
-        <ToolCard key={tool.id} tool={tool} />
-      ))}
-    </div>
+    <>
+      <p className="mb-3 text-xs text-muted-foreground" aria-live="polite">
+        Showing <span className="font-medium tabular-nums text-foreground">{filtered.length}</span>
+        {category ? ` ${category.label.toLowerCase()} tools` : ' tools'}
+      </p>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {filtered.map((tool) => (
+          <ToolCard key={tool.id} tool={tool} />
+        ))}
+      </div>
+    </>
   );
 }
 
