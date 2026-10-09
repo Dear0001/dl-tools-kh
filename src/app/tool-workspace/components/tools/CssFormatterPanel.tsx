@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Tool } from '@/data/tools';
 import PanelLayout from '../PanelLayout';
 import CodeEditor from '../CodeEditor';
+import CodeOutput from '../CodeOutput';
 import beautify from 'js-beautify';
 
 const SAMPLE = `.container{display:flex;flex-direction:column;align-items:center;gap:16px;padding:24px;background-color:#0e0e10;border-radius:8px;}.title{font-size:24px;font-weight:700;color:#f0f0f5;margin-bottom:8px;}.btn{background:linear-gradient(135deg,#00d4aa,#7c6af7);color:#fff;border:none;border-radius:6px;padding:8px 16px;cursor:pointer;transition:all 150ms ease;}`;
@@ -48,7 +49,7 @@ export default function CssFormatterPanel({ tool }: { tool: Tool }) {
       <div className="flex-1 overflow-hidden p-4">
         <PanelLayout
           inputPanel={<CodeEditor value={input} onChange={setInput} placeholder="Paste CSS / SCSS here…" minHeight="100%" />}
-          outputPanel={<CodeEditor value={output} onChange={() => {}} readOnly placeholder="Formatted CSS appears here…" minHeight="100%" className="text-pink-300" />}
+          outputPanel={<CodeOutput value={output} language="css" placeholder="Formatted CSS appears here…" />}
           outputText={output}
           outputStatus={status}
           onClear={() => { setInput(''); setOutput(''); setStatus('idle'); }}

@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Tool } from '@/data/tools';
 import PanelLayout from '../PanelLayout';
 import CodeEditor from '../CodeEditor';
+import CodeOutput from '../CodeOutput';
 import { Minimize2, ImageIcon } from 'lucide-react';
 
 type Status = 'idle' | 'success' | 'error';
@@ -186,6 +187,13 @@ function reconstructJsonFromFragments(value: unknown): unknown {
   return value;
 }
 
+function repairEscapedBase64Padding(input: string): string {
+  return input.replace(
+    /(?<=[A-Za-z0-9+/])(?:\\=){1,2}(?=\\")/g,
+    (padding) => padding.replace(/\\=/g, '='),
+  );
+}
+
 function hasJsonFragmentMarkers(value: unknown): boolean {
   if (Array.isArray(value)) {
     return value.some(hasJsonFragmentMarkers);
@@ -244,7 +252,7 @@ function parseLineBasedJson(lines: string[]): Record<string, unknown> {
 }
 
 function parseJsonLike(input: string): unknown {
-  const text = input.trim();
+  const text = repairEscapedBase64Padding(input.trim());
 
   if (!text) {
     throw new Error('Input is empty');
@@ -523,13 +531,10 @@ export default function JsonFormatterPanel({ tool }: { tool: Tool }) {
           outputPanel={
             <div className="flex h-full flex-col">
               <div className="flex-1 min-h-0">
-                <CodeEditor
+                <CodeOutput
                   value={output}
-                  onChange={() => {}}
-                  readOnly
+                  language="json"
                   placeholder="Formatted JSON appears here…"
-                  minHeight="100%"
-                  className="text-emerald-300"
                 />
               </div>
               {previews.length > 0 && (

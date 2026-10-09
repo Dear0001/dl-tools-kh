@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Tool } from '@/data/tools';
 import PanelLayout from '../PanelLayout';
 import CodeEditor from '../CodeEditor';
+import CodeOutput from '../CodeOutput';
 
 const SAMPLE = `{
   "user": {
@@ -141,7 +142,7 @@ export default function JsonToJavaPanel({ tool }: { tool: Tool }) {
       <div className="flex-1 overflow-hidden p-4">
         <PanelLayout
           inputPanel={<CodeEditor value={input} onChange={setInput} placeholder='Paste JSON here… {"key": "value"}' minHeight="100%" />}
-          outputPanel={<CodeEditor value={output} onChange={() => {}} readOnly placeholder="Generated models appear here…" minHeight="100%" className="text-sky-300" />}
+          outputPanel={<CodeOutput value={output} language="java" placeholder="Generated models appear here…" />}
           outputText={output}
           outputStatus={error ? 'error' : output ? 'success' : 'idle'}
           errorMessage={error}

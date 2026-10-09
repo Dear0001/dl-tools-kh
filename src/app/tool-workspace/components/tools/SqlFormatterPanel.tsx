@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Tool } from '@/data/tools';
 import PanelLayout from '../PanelLayout';
 import CodeEditor from '../CodeEditor';
+import CodeOutput from '../CodeOutput';
 import { format as sqlFormat } from 'sql-formatter';
 
 const SAMPLE = `SELECT u.id,u.name,u.email,u.created_at,p.plan_name,p.price,COUNT(o.id) AS order_count,SUM(o.total_amount) AS lifetime_value FROM users u LEFT JOIN subscriptions s ON s.user_id=u.id LEFT JOIN plans p ON p.id=s.plan_id LEFT JOIN orders o ON o.user_id=u.id WHERE u.created_at>='2026-01-01' AND u.status='active' GROUP BY u.id,u.name,u.email,u.created_at,p.plan_name,p.price HAVING COUNT(o.id)>0 ORDER BY lifetime_value DESC LIMIT 100;`;
@@ -71,7 +72,7 @@ export default function SqlFormatterPanel({ tool }: { tool: Tool }) {
       <div className="flex-1 overflow-hidden p-4">
         <PanelLayout
           inputPanel={<CodeEditor value={input} onChange={setInput} placeholder="Paste SQL query here…" minHeight="100%" />}
-          outputPanel={<CodeEditor value={output} onChange={() => {}} readOnly placeholder="Formatted SQL appears here…" minHeight="100%" className="text-yellow-300" />}
+          outputPanel={<CodeOutput value={output} language="sql" placeholder="Formatted SQL appears here…" />}
           outputText={output}
           outputStatus={status}
           errorMessage={error}

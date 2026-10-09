@@ -36,10 +36,15 @@ export default function PanelLayout({
 
   const copyOutput = async () => {
     if (!outputText) return;
-    await navigator.clipboard.writeText(outputText);
-    setCopied(true);
-    toast.success('Copied to clipboard');
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(outputText);
+      setCopied(true);
+      toast.success('Copied to clipboard');
+      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Clipboard access was denied.';
+      toast.error(`Could not copy output: ${message}`);
+    }
   };
 
   const downloadOutput = () => {

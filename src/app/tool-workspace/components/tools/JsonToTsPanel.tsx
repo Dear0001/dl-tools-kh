@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Tool } from '@/data/tools';
 import PanelLayout from '../PanelLayout';
 import CodeEditor from '../CodeEditor';
+import CodeOutput from '../CodeOutput';
 import JsonToTS from 'json-to-ts';
 
 const SAMPLE = `{
@@ -79,7 +80,7 @@ export default function JsonToTsPanel({ tool }: { tool: Tool }) {
       <div className="flex-1 overflow-hidden p-4">
         <PanelLayout
           inputPanel={<CodeEditor value={input} onChange={setInput} placeholder='Paste JSON here… {"key": "value"}' minHeight="100%" />}
-          outputPanel={<CodeEditor value={output} onChange={() => {}} readOnly placeholder="TypeScript interfaces appear here…" minHeight="100%" className="text-sky-300" />}
+          outputPanel={<CodeOutput value={output} language="typescript" placeholder="TypeScript interfaces appear here…" />}
           outputText={output}
           outputStatus={status}
           errorMessage={error}

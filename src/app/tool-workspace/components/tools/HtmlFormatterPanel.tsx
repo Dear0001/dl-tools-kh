@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Tool } from '@/data/tools';
 import PanelLayout from '../PanelLayout';
 import CodeEditor from '../CodeEditor';
+import CodeOutput from '../CodeOutput';
 import beautify from 'js-beautify';
 
 const SAMPLE = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>DevToolkit</title><link rel="stylesheet" href="/styles.css"></head><body><div class="container"><h1 class="title">Hello World</h1><p class="description">A developer toolkit.</p><button onClick="handleClick()">Click me</button></div><script src="/app.js"></script></body></html>`;
@@ -51,7 +52,7 @@ export default function HtmlFormatterPanel({ tool }: { tool: Tool }) {
       <div className="flex-1 overflow-hidden p-4">
         <PanelLayout
           inputPanel={<CodeEditor value={input} onChange={setInput} placeholder="Paste HTML here…" minHeight="100%" />}
-          outputPanel={<CodeEditor value={output} onChange={() => {}} readOnly placeholder="Formatted HTML appears here…" minHeight="100%" className="text-orange-300" />}
+          outputPanel={<CodeOutput value={output} language="html" placeholder="Formatted HTML appears here…" />}
           outputText={output}
           outputStatus={status}
           onClear={() => { setInput(''); setOutput(''); setStatus('idle'); }}

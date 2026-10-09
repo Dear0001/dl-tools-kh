@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Tool } from '@/data/tools';
 import PanelLayout from '../PanelLayout';
 import CodeEditor from '../CodeEditor';
+import CodeOutput from '../CodeOutput';
 
 const SAMPLE = `const fetchUserData=async(userId)=>{const response=await fetch(\`/api/users/\${userId}\`);if(!response.ok){throw new Error('Failed to fetch user: '+response.status);}const data=await response.json();return{id:data.id,name:data.name,email:data.email,createdAt:new Date(data.created_at).toISOString()};}`;
 
@@ -76,7 +77,13 @@ export default function JsFormatterPanel({ tool }: { tool: Tool }) {
       <div className="flex-1 overflow-hidden p-4">
         <PanelLayout
           inputPanel={<CodeEditor value={input} onChange={setInput} placeholder="Paste JavaScript or TypeScript here…" minHeight="100%" />}
-          outputPanel={<CodeEditor value={output} onChange={() => {}} readOnly placeholder="Formatted code appears here…" minHeight="100%" className="text-sky-300" />}
+          outputPanel={
+            <CodeOutput
+              value={output}
+              language={parser === 'typescript' ? 'typescript' : 'javascript'}
+              placeholder="Formatted code appears here…"
+            />
+          }
           outputText={output}
           outputStatus={status}
           errorMessage={error}

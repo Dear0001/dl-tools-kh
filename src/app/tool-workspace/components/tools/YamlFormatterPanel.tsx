@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Tool } from '@/data/tools';
 import PanelLayout from '../PanelLayout';
 import CodeEditor from '../CodeEditor';
+import CodeOutput from '../CodeOutput';
 
 const SAMPLE = `name: devtoolkit
 version: 1.0.0
@@ -72,7 +73,7 @@ export default function YamlFormatterPanel({ tool }: { tool: Tool }) {
       <div className="flex-1 overflow-hidden p-4">
         <PanelLayout
           inputPanel={<CodeEditor value={input} onChange={setInput} placeholder="Paste YAML here…" minHeight="100%" />}
-          outputPanel={<CodeEditor value={output} onChange={() => {}} readOnly placeholder="Formatted YAML appears here…" minHeight="100%" className="text-teal-300" />}
+          outputPanel={<CodeOutput value={output} language="yaml" placeholder="Formatted YAML appears here…" />}
           outputText={output}
           outputStatus={status}
           errorMessage={error}
