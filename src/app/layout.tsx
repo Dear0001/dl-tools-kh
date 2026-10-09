@@ -26,7 +26,12 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="km" className={GeistSans.variable} suppressHydrationWarning>
+    <html
+      lang="km"
+      className={GeistSans.variable}
+      data-scroll-behavior="smooth"
+      suppressHydrationWarning
+    >
       <body className={`${GeistSans.className} relative`} suppressHydrationWarning>
         <GoogleAnalytics />
         <Topbar />
