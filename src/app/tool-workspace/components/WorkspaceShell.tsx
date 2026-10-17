@@ -1,10 +1,13 @@
 'use client';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Tool } from '@/data/tools';
-import { ArrowLeft, Settings2 } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
+import { useSession } from 'next-auth/react';
+import { toast } from 'sonner';
 import { CATEGORY_COLORS } from '@/data/tools';
 import { trackToolOpen } from '@/components/GoogleAnalytics';
+import SavedToolDataDialog from './SavedToolDataDialog';
 
 // Tool-specific panels
 import JsonFormatterPanel from './tools/JsonFormatterPanel';
@@ -60,19 +63,41 @@ const PANEL_MAP: Record<string, React.ComponentType<{ tool: Tool }>> = {
 };
 
 export default function WorkspaceShell({ tool }: { tool: Tool }) {
-  const [configOpen, setConfigOpen] = useState(false);
+  const { data: session, status: authStatus } = useSession();
   const trackedToolId = useRef('');
   const colors = CATEGORY_COLORS[tool.category];
   const PanelComponent = PANEL_MAP[tool.id] || GenericComingSoon;
 
   // Save to recent
   useEffect(() => {
-    // Backend integration point: persist recent tools to user profile
-    const stored = localStorage.getItem('devtoolkit-recent');
-    const recents: string[] = stored ? JSON.parse(stored) : [];
-    const next = [tool.id, ...recents.filter((r) => r !== tool.id)].slice(0, 8);
-    localStorage.setItem('devtoolkit-recent', JSON.stringify(next));
-  }, [tool.id]);
+    try {
+      const stored = localStorage.getItem('devtoolkit-recent');
+      const recents: unknown = stored ? JSON.parse(stored) : [];
+      const previous = Array.isArray(recents)
+        ? recents.filter((id): id is string => typeof id === 'string')
+        : [];
+      localStorage.setItem(
+        'devtoolkit-recent',
+        JSON.stringify([tool.id, ...previous.filter((id) => id !== tool.id)].slice(0, 8)),
+      );
+    } catch {
+      toast.error('Could not save recent tools on this device.');
+    }
+
+    if (authStatus !== 'authenticated' || !session?.user?.id) return;
+    fetch('/api/user/recents', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ toolId: tool.id }),
+    }).then(async (response) => {
+      if (!response.ok) {
+        const result = (await response.json()) as { error?: string };
+        throw new Error(result.error ?? 'Could not sync this recent tool.');
+      }
+    }).catch((error: unknown) => {
+      toast.error(error instanceof Error ? error.message : 'Could not sync this recent tool.');
+    });
+  }, [authStatus, session?.user?.id, tool.id]);
 
   useEffect(() => {
     if (trackedToolId.current === tool.id) return;
@@ -102,13 +127,7 @@ export default function WorkspaceShell({ tool }: { tool: Tool }) {
           <span className={`tool-category-badge hidden sm:inline-flex ${colors.bg} ${colors.text} border ${colors.border}`}>
             {tool.category}
           </span>
-          <button
-            onClick={() => setConfigOpen(!configOpen)}
-            className={`btn-icon ${configOpen ? 'bg-muted text-foreground border-border' : ''}`}
-            aria-label="Toggle configuration panel"
-          >
-            <Settings2 size={15} />
-          </button>
+          <SavedToolDataDialog tool={tool} />
         </div>
       </div>
 

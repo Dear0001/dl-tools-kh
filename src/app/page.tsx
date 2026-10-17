@@ -22,7 +22,7 @@ export default function HomePage() {
               <span className="block text-muted-foreground">Get back to building.</span>
             </h1>
             <p className="mt-5 max-w-xl text-base leading-7 text-muted-foreground">
-              Format, compare, convert, and inspect code or data—right in your browser, with no account or upload.
+              Format, compare, convert, and inspect code or data right in your browser. Sign in only to sync preferences or save data.
             </p>
             <div className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted-foreground">
               <span><strong className="font-semibold text-foreground">{TOOLS.length}</strong> tools</span>
@@ -73,7 +73,7 @@ export default function HomePage() {
 
         <footer className="mt-12 flex flex-col gap-2 border-t border-border pt-5 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
           <p>Useful utilities, without getting in your way.</p>
-          <p>Runs in your browser · No account required</p>
+          <p>Tools run in your browser · Account optional</p>
         </footer>
       </div>
     </>

@@ -14,7 +14,29 @@ pnpm dev
 bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:4028](http://localhost:4028) with your browser to see the result.
+
+## Database, sign-in, and saved data
+
+Tool transformations remain in the browser. Google sign-in is optional and enables account-synced preferences, recent tools, and explicitly saved text/data. Saved data is associated with the signed-in account and is not collected automatically from tool inputs or outputs.
+
+### Configure PostgreSQL and Google OAuth
+
+1. Create a PostgreSQL database and add `DATABASE_URL` to the root `.env` file. Keep `.env` and `.env.local` private; neither should be committed.
+2. Create a Google OAuth client. Add `http://localhost:4028` as an authorized JavaScript origin and `http://localhost:4028/api/auth/callback/google` as an authorized redirect URI. Add the production site and its `/api/auth/callback/google` callback before deploying.
+3. Add `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, and a random `AUTH_SECRET` to `.env.local` for Next.js. Generate a secret with `openssl rand -base64 32`. Keep these secrets server-side; do not prefix them with `NEXT_PUBLIC_`. `.env.example` lists the required variable names.
+4. Generate the Prisma client and apply the first migration:
+
+   ```bash
+   npm run db:generate
+   npm run db:migrate -- --name init
+   ```
+
+5. Run `npm run dev`, open the site at port 4028, and use **Sign in**. Prisma Studio is available with `npm run db:studio`.
+
+For production, configure the same environment variables in the hosting provider, apply committed migrations with `npm run db:deploy`, then deploy the app. Back up the PostgreSQL database and use TLS-enabled connection strings in production.
+
+The account UI lets signed-in users save and delete up to 1 MB of text/data per item for the current tool. API access is scoped to the signed-in account, but saved content and OAuth adapter records are stored as ordinary database text; do not save passwords, access tokens, or other secrets. Protect database access and backups accordingly.
 
 ## Google Analytics
 

@@ -8,14 +8,31 @@ import { Minimize2, ImageIcon, QrCode, CheckCircle2, Copy, XCircle } from 'lucid
 import { toast } from 'sonner';
 import jsQR from 'jsqr';
 import { getEmvQrDetails } from './emvQr';
+import {
+  detectInputFormat,
+  findJsonFragments,
+  formatContentOutput,
+  type DetectedInputFormat,
+  type InputFormatOption,
+  type JsonFragment,
+  type OutputFormatOption,
+} from './jsonContent';
 
 type Status = 'idle' | 'success' | 'error';
+type ProcessingAction = 'format' | 'minify' | 'validate';
 
 interface PreviewItem {
   path: string;
   value: string;
   previewUrl?: string;
   kind: 'image' | 'text';
+}
+
+interface ContentAnalysis {
+  format: Exclude<DetectedInputFormat, 'empty' | 'invalid-json'>;
+  value?: unknown;
+  fragments: JsonFragment[];
+  error?: string;
 }
 
 interface DecodedQrItem {
@@ -317,6 +334,18 @@ function parseJsonLike(input: string): unknown {
   throw new Error('Unable to parse input');
 }
 
+function looksLikeLegacyJsonInput(input: string): boolean {
+  const lines = input.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  if (lines.length > 1) {
+    return lines.every((line) => /^[^:=]+?\s*[:=]\s*.+$/.test(line) || /^[{}\[\],]+$/.test(line));
+  }
+  const line = input.trim();
+  return (
+    /^[A-Za-z_$][\w$.-]*\s*=\s*.+$/.test(line) ||
+    (/^[A-Za-z_$][\w$.-]*\s*:\s*(?!\/\/).+$/.test(line) && !line.includes('://'))
+  );
+}
+
 function looksLikeBase64(value: string): boolean {
   const compact = value.replace(/\s+/g, '');
   if (!compact) return false;
@@ -443,10 +472,17 @@ export default function JsonFormatterPanel({ tool }: { tool: Tool }) {
   const [error, setError] = useState('');
   const [indent, setIndent] = useState(2);
   const [sortKeys, setSortKeys] = useState(false);
+  const [inputFormat, setInputFormat] = useState<InputFormatOption>('auto');
+  const [outputFormat, setOutputFormat] = useState<OutputFormatOption>('auto');
+  const [detectedFormat, setDetectedFormat] = useState<DetectedInputFormat>('empty');
+  const [outputLanguage, setOutputLanguage] = useState<'json' | 'text'>('json');
+  const [processingAction, setProcessingAction] = useState<ProcessingAction>('format');
   const [previews, setPreviews] = useState<PreviewItem[]>([]);
+  const [showImagePreviews, setShowImagePreviews] = useState(false);
   const [decodedQrItems, setDecodedQrItems] = useState<DecodedQrItem[]>([]);
   const [decodingQr, setDecodingQr] = useState(false);
   const [copiedPayloadPath, setCopiedPayloadPath] = useState<string | null>(null);
+  const [copiedImagePath, setCopiedImagePath] = useState<string | null>(null);
   const decodedEmvQrItems = decodedQrItems.filter((item) => item.hasDualCurrency !== undefined);
   const hasDualCurrency = decodedEmvQrItems.some((item) => item.hasDualCurrency);
   const dualCurrencySummary =
@@ -464,6 +500,134 @@ export default function JsonFormatterPanel({ tool }: { tool: Tool }) {
     return JSON.stringify(sorted, null, indent);
   };
 
+  const analyzeContent = (value: string, selectedFormat = inputFormat): ContentAnalysis => {
+    if (!value.trim()) {
+      return { format: 'string', value, fragments: [] };
+    }
+
+    if (selectedFormat === 'string') {
+      return { format: 'string', value, fragments: [] };
+    }
+
+    const fragments = findJsonFragments(value);
+    if (selectedFormat === 'mixed') {
+      return { format: 'mixed', fragments };
+    }
+
+    const detected = detectInputFormat(value);
+    if (selectedFormat === 'auto' && detected.format === 'invalid-json') {
+      return { format: 'json', fragments: [], error: detected.error };
+    }
+    if (selectedFormat === 'auto' && detected.format === 'mixed') {
+      return { format: 'mixed', fragments };
+    }
+    if (selectedFormat === 'auto' && detected.format === 'string') {
+      if (!looksLikeLegacyJsonInput(value)) {
+        return { format: 'string', value, fragments: [] };
+      }
+      try {
+        return { format: 'json', value: parseJsonLike(value), fragments: [] };
+      } catch {
+        return { format: 'string', value, fragments: [] };
+      }
+    }
+
+    if (detected.format === 'invalid-json') {
+      return { format: 'json', fragments: [], error: detected.error };
+    }
+
+    try {
+      return { format: 'json', value: parseJsonLike(value), fragments: [] };
+    } catch (parseError) {
+      const message =
+        selectedFormat === 'json'
+          ? `Invalid JSON: ${parseError instanceof Error ? parseError.message : 'Could not parse the input.'}`
+          : 'Invalid JSON';
+      return { format: 'json', fragments: [], error: message };
+    }
+  };
+
+  const processContent = (
+    value: string,
+    action: ProcessingAction,
+    selectedInput = inputFormat,
+    selectedOutput = outputFormat,
+  ) => {
+    if (!value.trim()) {
+      setDetectedFormat('empty');
+      setOutput('');
+      setStatus(action === 'format' ? 'idle' : 'error');
+      setError(action === 'format' ? '' : 'Input is empty.');
+      setOutputLanguage('text');
+      return;
+    }
+
+    const analysis = analyzeContent(value, selectedInput);
+    const detected =
+      selectedInput === 'string'
+        ? 'string'
+        : selectedInput === 'mixed'
+          ? 'mixed'
+          : analysis.error
+            ? 'invalid-json'
+            : analysis.format;
+    setDetectedFormat(detected);
+    setOutputLanguage(
+      selectedOutput === 'json' || (selectedOutput === 'auto' && analysis.format === 'json') ? 'json' : 'text',
+    );
+
+    if (analysis.error) {
+      setOutput('');
+      setStatus('error');
+      setError(analysis.error);
+      return;
+    }
+
+    if (action === 'validate') {
+      const message =
+        analysis.format === 'json'
+          ? '✓ Valid JSON / JSON-like input'
+          : analysis.format === 'mixed'
+            ? `✓ Mixed content · ${analysis.fragments.length} valid JSON fragment${analysis.fragments.length === 1 ? '' : 's'}`
+            : 'Plain string detected · JSON validation does not apply';
+      setOutput(message);
+      setStatus('success');
+      setError('');
+      return;
+    }
+
+    setOutput(
+      formatContentOutput(
+        value,
+        analysis.format,
+        analysis.value,
+        analysis.fragments,
+        selectedOutput,
+        indent,
+        action === 'minify',
+        formatJson,
+      ),
+    );
+    setStatus('success');
+    setError('');
+  };
+
+  const changeInputFormat = (value: InputFormatOption) => {
+    setInputFormat(value);
+    setProcessingAction('format');
+    setPreviews([]);
+    setDecodedQrItems([]);
+    setShowImagePreviews(false);
+    processContent(input, 'format', value);
+  };
+
+  const changeOutputFormat = (value: OutputFormatOption) => {
+    setOutputFormat(value);
+    setProcessingAction('format');
+    setShowImagePreviews(false);
+    processContent(input, 'format', inputFormat, value);
+  };
+
   const copyDecodedPayload = async (item: DecodedQrItem) => {
     if (!item.payload) return;
 
@@ -478,45 +642,111 @@ export default function JsonFormatterPanel({ tool }: { tool: Tool }) {
     }
   };
 
-  const handleInputChange = (value: string) => {
-    setInput(value);
+  const copyPreviewImage = async (preview: PreviewItem) => {
+    if (!preview.previewUrl) return;
+
     try {
-      const parsed = parseJsonLike(value);
-      setOutput(formatJson(parsed));
-      setStatus('success');
-      setError('');
-      setPreviews([]);
-      setDecodedQrItems([]);
-    } catch {
-      setOutput('');
-      setStatus('idle');
-      setError('');
-      setPreviews([]);
-      setDecodedQrItems([]);
+      if (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined') {
+        throw new Error('Image clipboard access is not supported in this browser.');
+      }
+
+      const response = await fetch(preview.previewUrl);
+      if (!response.ok) {
+        throw new Error('Could not load the preview image.');
+      }
+
+      const bitmap = await createImageBitmap(await response.blob());
+      const canvas = document.createElement('canvas');
+      canvas.width = bitmap.width;
+      canvas.height = bitmap.height;
+      const context = canvas.getContext('2d');
+      if (!context) {
+        bitmap.close();
+        throw new Error('Could not prepare the image for copying.');
+      }
+
+      context.drawImage(bitmap, 0, 0);
+      bitmap.close();
+      const pngBlob = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob((blob) => {
+          if (blob) resolve(blob);
+          else reject(new Error('Could not convert the image for copying.'));
+        }, 'image/png');
+      });
+
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob })]);
+      setCopiedImagePath(preview.path);
+      toast.success('Image copied to clipboard');
+      window.setTimeout(() => setCopiedImagePath(null), 1600);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Clipboard access was denied.';
+      toast.error(`Could not copy image: ${message}`);
     }
   };
 
-  const previewImages = () => {
-    try {
-      const parsed = parseJsonLike(input);
-      const collected = collectBase64Previews(parsed);
-      setOutput(formatJson(parsed));
-      setPreviews(collected);
-      setDecodedQrItems([]);
-      setStatus('success');
-      setError('');
+  const handleInputChange = (value: string) => {
+    setInput(value);
+    setProcessingAction('format');
+    setShowImagePreviews(false);
+    setPreviews([]);
+    setDecodedQrItems([]);
+    processContent(value, 'format');
+  };
 
-      if (collected.length === 0) {
-        if (typeof window !== 'undefined') {
-          window.alert('JSON has no Base64 image data');
-        }
-      }
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Invalid JSON';
+  const previewImages = () => {
+    if (!input.trim()) {
+      processContent(input, 'validate');
+      setShowImagePreviews(false);
+      return;
+    }
+
+    const analysis = analyzeContent(input);
+    setProcessingAction('format');
+    setDetectedFormat(analysis.error ? 'invalid-json' : analysis.format);
+    setDecodedQrItems([]);
+    if (analysis.error) {
       setOutput('');
       setPreviews([]);
+      setShowImagePreviews(false);
       setStatus('error');
-      setError(msg);
+      setError(analysis.error);
+      return;
+    }
+
+    const collected =
+      analysis.format === 'json'
+        ? collectBase64Previews(analysis.value)
+        : analysis.format === 'mixed'
+          ? analysis.fragments.flatMap((fragment, index) =>
+              collectBase64Previews(fragment.value).map((preview) => ({
+                ...preview,
+                path: `fragment ${index + 1}.${preview.path}`,
+              })),
+            )
+          : [];
+    setOutput(
+      formatContentOutput(
+        input,
+        analysis.format,
+        analysis.value,
+        analysis.fragments,
+        outputFormat,
+        indent,
+        false,
+        formatJson,
+      ),
+    );
+    setOutputLanguage(outputFormat === 'json' || (outputFormat === 'auto' && analysis.format === 'json') ? 'json' : 'text');
+    setPreviews(collected);
+    setShowImagePreviews(collected.length > 0);
+    setStatus('success');
+    setError('');
+    if (collected.length === 0) {
+      toast.error(
+        analysis.format === 'string'
+          ? 'Image preview requires JSON or mixed content containing a Base64 image'
+          : 'No Base64 images found in the input',
+      );
     }
   };
 
@@ -582,44 +812,69 @@ export default function JsonFormatterPanel({ tool }: { tool: Tool }) {
   };
 
   const minify = () => {
-    try {
-      const parsed = parseJsonLike(input);
-      setOutput(JSON.stringify(parsed));
-      setPreviews(collectBase64Previews(parsed));
-      setStatus('success');
-      setError('');
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Invalid JSON';
-      setStatus('error');
-      setError(msg);
-      setPreviews([]);
-    }
+    setProcessingAction('minify');
+    setShowImagePreviews(false);
+    setPreviews([]);
+    setDecodedQrItems([]);
+    processContent(input, 'minify');
   };
 
   const validate = () => {
-    try {
-      parseJsonLike(input);
-      setStatus('success');
-      setError('');
-      setOutput('✓ Valid JSON');
-      setPreviews([]);
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Invalid JSON';
-      setStatus('error');
-      setError(msg);
-      setOutput('✗ ' + msg);
-      setPreviews([]);
-    }
+    setProcessingAction('validate');
+    setPreviews([]);
+    setShowImagePreviews(false);
+    setDecodedQrItems([]);
+    processContent(input, 'validate');
   };
 
   useEffect(() => {
-    handleInputChange(input);
+    processContent(input, processingAction);
   }, [sortKeys, indent]);
 
   return (
     <div className="h-full flex flex-col">
       {/* Config bar */}
-      <div className="flex-shrink-0 flex items-center gap-3 px-4 py-2.5 border-b border-border bg-secondary/30 flex-wrap">
+      <div className="flex-shrink-0 flex flex-wrap items-center gap-3 px-4 py-2.5 border-b border-border bg-secondary/30">
+        <div className="flex items-center gap-2">
+          <label htmlFor="json-input-format" className="text-xs text-muted-foreground font-medium">Input</label>
+          <select
+            id="json-input-format"
+            className="select-input"
+            value={inputFormat}
+            onChange={(event) => changeInputFormat(event.target.value as InputFormatOption)}
+          >
+            <option value="auto">Auto detect</option>
+            <option value="string">Plain string</option>
+            <option value="json">JSON / JSON-like</option>
+            <option value="mixed">JSON + string</option>
+          </select>
+        </div>
+        <span className="text-xs text-muted-foreground" aria-live="polite">
+          Detected: <span className="font-medium text-foreground">
+            {detectedFormat === 'empty'
+              ? 'Waiting for input'
+              : detectedFormat === 'json'
+                ? 'JSON'
+                : detectedFormat === 'string'
+                  ? 'Plain string'
+                  : detectedFormat === 'mixed'
+                    ? 'Mixed content'
+                    : 'Invalid JSON'}
+          </span>
+        </span>
+        <div className="flex items-center gap-2">
+          <label htmlFor="json-output-format" className="text-xs text-muted-foreground font-medium">Output</label>
+          <select
+            id="json-output-format"
+            className="select-input"
+            value={outputFormat}
+            onChange={(event) => changeOutputFormat(event.target.value as OutputFormatOption)}
+          >
+            <option value="auto">Match input</option>
+            <option value="string">Plain string</option>
+            <option value="json">JSON</option>
+          </select>
+        </div>
         <div className="flex items-center gap-2">
           <label className="text-xs text-muted-foreground font-medium">Indent</label>
           <select
@@ -663,46 +918,75 @@ export default function JsonFormatterPanel({ tool }: { tool: Tool }) {
             <CodeEditor
               value={input}
               onChange={handleInputChange}
-              placeholder='Paste JSON here… e.g. {"key": "value"}'
+              placeholder={'Paste plain text, JSON, or text containing JSON…\n{"key": "value"}'}
               minHeight="100%"
             />
           }
           outputPanel={
             <div className="flex h-full flex-col">
-              <div className="flex-1 min-h-0">
-                <CodeOutput
-                  value={output}
-                  language="json"
-                  placeholder="Formatted JSON appears here…"
-                />
-              </div>
-              {previews.length > 0 && (
-                <div className="border-t border-border bg-secondary/20 p-3 space-y-2">
+              {!showImagePreviews && (
+                <div className="flex-1 min-h-0">
+                  <CodeOutput
+                    value={output}
+                    language={outputLanguage}
+                    placeholder="Formatted output appears here…"
+                  />
+                </div>
+              )}
+              {showImagePreviews && previews.length > 0 && (
+                <div className="flex-1 min-h-0 overflow-auto bg-secondary/20 p-3 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                     <ImageIcon size={12} />
                     Base64 previews
                   </div>
-                  {previews.some((preview) => preview.previewUrl) && (
+                  <div className="flex items-center gap-1.5">
                     <button
                       className="btn-ghost text-xs"
-                      onClick={decodeQrImages}
-                      disabled={decodingQr}
+                      onClick={() => setShowImagePreviews(false)}
                     >
-                      <QrCode size={13} />
-                      {decodingQr ? 'Decoding QR codes…' : 'Decode EMV® QR Codes'}
+                      Show formatted JSON
                     </button>
-                  )}
+                    {previews.some((preview) => preview.previewUrl) && (
+                      <button
+                        className="btn-ghost text-xs"
+                        onClick={decodeQrImages}
+                        disabled={decodingQr}
+                      >
+                        <QrCode size={13} />
+                        {decodingQr ? 'Decoding QR codes…' : 'Decode EMV® QR Codes'}
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div className="grid gap-2 md:grid-cols-2">
                     {previews.map((preview) => (
                       <div key={preview.path} className="rounded-lg border border-border/70 bg-background/60 p-2">
-                        <div className="mb-2 text-[11px] font-mono text-muted-foreground">{preview.path}</div>
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <div className="min-w-0 truncate text-[11px] font-mono text-muted-foreground" title={preview.path}>
+                            {preview.path}
+                          </div>
+                          {preview.previewUrl && (
+                            <button
+                              type="button"
+                              className="btn-ghost flex-shrink-0 text-[11px]"
+                              onClick={() => copyPreviewImage(preview)}
+                              title={`Copy image from ${preview.path}`}
+                            >
+                              {copiedImagePath === preview.path ? (
+                                <CheckCircle2 size={13} className="text-primary" />
+                              ) : (
+                                <Copy size={13} />
+                              )}
+                              {copiedImagePath === preview.path ? 'Copied' : 'Copy image'}
+                            </button>
+                          )}
+                        </div>
                         {preview.previewUrl ? (
                           <img
                             src={preview.previewUrl}
                             alt={preview.path}
-                            className="max-h-32 w-full rounded-md border border-border object-contain bg-muted/50"
+                            className="h-56 w-full rounded-md border border-border object-contain bg-muted/50 md:h-72"
                           />
                         ) : (
                           <div className="rounded-md border border-dashed border-border/60 p-2 text-[11px] text-muted-foreground">
@@ -804,10 +1088,15 @@ export default function JsonFormatterPanel({ tool }: { tool: Tool }) {
             setOutput('');
             setStatus('idle');
             setError('');
+            setDetectedFormat('empty');
+            setProcessingAction('format');
+            setOutputLanguage('text');
             setPreviews([]);
+            setShowImagePreviews(false);
+            setDecodedQrItems([]);
           }}
           onSwap={() => {
-            if (output) setInput(output);
+            if (output) handleInputChange(output);
           }}
         />
       </div>

@@ -4,19 +4,86 @@ import Link from 'next/link';
 import { History, X } from 'lucide-react';
 import { TOOLS } from '@/data/tools';
 import { CATEGORY_COLORS } from '@/data/tools';
+import { useSession } from 'next-auth/react';
+import { toast } from 'sonner';
 
 export default function RecentTools() {
+  const { data: session, status: authStatus } = useSession();
   const [recents, setRecents] = useState<string[] | null>(null);
+  const [synced, setSynced] = useState(false);
 
   useEffect(() => {
-    const stored = localStorage.getItem('devtoolkit-recent');
-    setRecents(stored ? JSON.parse(stored) : []);
-  }, []);
+    let localRecents: string[] = [];
+    try {
+      const stored = localStorage.getItem('devtoolkit-recent');
+      const parsed: unknown = stored ? JSON.parse(stored) : [];
+      if (Array.isArray(parsed)) {
+        localRecents = parsed.filter(
+          (id): id is string => typeof id === 'string' && TOOLS.some((tool) => tool.id === id),
+        ).slice(0, 8);
+      }
+    } catch {
+      toast.error('Could not read recent tools from this device.');
+    }
+    setRecents(localRecents);
 
-  const remove = (id: string) => {
+    if (authStatus !== 'authenticated' || !session?.user?.id) {
+      setSynced(false);
+      return;
+    }
+
+    let active = true;
+    const loadRecents = async () => {
+      try {
+        if (localRecents.length > 0) {
+          const syncResponse = await fetch('/api/user/recents', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ toolIds: localRecents }),
+          });
+          if (!syncResponse.ok) {
+            const result = (await syncResponse.json()) as { error?: string };
+            throw new Error(result.error ?? 'Could not sync recent tools.');
+          }
+        }
+
+        const response = await fetch('/api/user/recents');
+        const result = (await response.json()) as { toolIds?: string[]; error?: string };
+        if (!response.ok) throw new Error(result.error ?? 'Could not load recent tools.');
+        if (active) {
+          setRecents(result.toolIds ?? []);
+          setSynced(true);
+        }
+      } catch (error) {
+        if (!active) return;
+        const message = error instanceof Error ? error.message : 'Could not sync recent tools.';
+        toast.error(message);
+        setSynced(false);
+      }
+    };
+    void loadRecents();
+
+    return () => {
+      active = false;
+    };
+  }, [authStatus, session?.user?.id]);
+
+  const remove = async (id: string) => {
     const next = (recents ?? []).filter((recentId) => recentId !== id);
-    setRecents(next);
-    localStorage.setItem('devtoolkit-recent', JSON.stringify(next));
+    try {
+      if (synced) {
+        const response = await fetch(`/api/user/recents/${encodeURIComponent(id)}`, { method: 'DELETE' });
+        if (!response.ok) {
+          const result = (await response.json()) as { error?: string };
+          throw new Error(result.error ?? 'Could not remove this recent tool.');
+        }
+      }
+      localStorage.setItem('devtoolkit-recent', JSON.stringify(next));
+      setRecents(next);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not remove this recent tool.';
+      toast.error(message);
+    }
   };
 
   const tools = (recents ?? [])

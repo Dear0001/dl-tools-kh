@@ -366,6 +366,15 @@
     padding: 7px 14px;
     border-radius: 6px;
     border: 1px solid var(--border);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  .btn-primary > svg,
+  .btn-ghost > svg {
+    flex-shrink: 0;
   }
 
   .btn-icon {

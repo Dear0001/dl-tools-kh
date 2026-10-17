@@ -42,6 +42,10 @@
     "dev": "next dev -p 4028",
     "build": "next build",
     "start": "next dev -p 4028",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:studio": "prisma studio",
     "lint": "next lint",
     "lint:fix": "next lint --fix",
     "format": "prettier --write \"src/**/*.{ts,tsx,css,md,json}\"",
@@ -49,8 +53,10 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@auth/prisma-adapter": "^2.11.3",
     "@dhiwise/component-tagger": "^1.0.16",
     "@heroicons/react": "^2.2.0",
+    "@prisma/client": "^6.19.3",
     "@tailwindcss/forms": "^0.5.10",
     "@tailwindcss/typography": "^0.5.16",
     "@types/js-beautify": "^1.14.3",
@@ -63,7 +69,8 @@
     "json-to-ts": "^2.1.0",
     "jsqr": "^1.4.0",
     "lucide-react": "^1.7.0",
-    "next": "15.5.18",
+    "next": "15.5.28",
+    "next-auth": "^5.0.0-beta.32",
     "prettier": "^3.5.3",
     "prettier-plugin-sql": "^0.18.1",
     "qrcode": "^1.5.4",
@@ -89,8 +96,14 @@
     "eslint-config-prettier": "^10.1.1",
     "eslint-plugin-prettier": "^5.2.6",
     "postcss": "8.4.8",
+    "prisma": "^6.19.3",
     "tailwindcss": "3.4.6",
     "tailwindcss-animate": "^1.0.7",
     "typescript": "^5"
+  },
+  "allowScripts": {
+    "@prisma/client@6.19.3": true,
+    "@prisma/engines@6.19.3": true,
+    "prisma@6.19.3": true
   }
 }

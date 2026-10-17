@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { Check, Copy } from 'lucide-react';
 import { toast } from 'sonner';
 
-type CodeLanguage = 'css' | 'html' | 'java' | 'javascript' | 'json' | 'sql' | 'typescript' | 'xml' | 'yaml';
+type CodeLanguage = 'css' | 'html' | 'java' | 'javascript' | 'json' | 'sql' | 'text' | 'typescript' | 'xml' | 'yaml';
 
 interface CodeOutputProps {
   value: string;
@@ -33,6 +33,7 @@ const KEYWORDS: Record<CodeLanguage, Set<string>> = {
     'try', 'type', 'typeof', 'var', 'void', 'while', 'yield',
   ]),
   json: new Set(['false', 'null', 'true']),
+  text: new Set(),
   sql: new Set([
     'all', 'alter', 'and', 'as', 'asc', 'between', 'by', 'case', 'count', 'create', 'delete',
     'desc', 'distinct', 'drop', 'else', 'end', 'from', 'group', 'having', 'in', 'insert', 'into',

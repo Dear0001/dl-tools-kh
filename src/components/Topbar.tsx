@@ -4,7 +4,9 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import AppLogo from '@/components/ui/AppLogo';
-import { Menu, X, Zap, HandCoins } from 'lucide-react';
+import { Menu, X, Zap, HandCoins, LogIn, LogOut } from 'lucide-react';
+import { signIn, signOut, useSession } from 'next-auth/react';
+import { toast } from 'sonner';
 
 // Inline GitHub SVG since brand icons were removed in lucide-react v1
 function GithubIcon({ size = 16 }: { size?: number }) {
@@ -48,12 +50,14 @@ const i18n = {
 
 export default function Topbar() {
   const pathname = usePathname();
+  const { data: session, status: authStatus } = useSession();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [theme, setTheme] = useState<'dark' | 'light'>('light');
   const [locale, setLocale] = useState<'en' | 'kh'>('kh');
   const [userSelectedTheme, setUserSelectedTheme] = useState(false);
   const [userSelectedLocale, setUserSelectedLocale] = useState(false);
   const [supportOpen, setSupportOpen] = useState(false);
+  const [preferencesLoadedFor, setPreferencesLoadedFor] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -72,6 +76,40 @@ export default function Topbar() {
       // ignore localStorage errors in unsupported environments
     }
   }, []);
+
+  useEffect(() => {
+    const userId = session?.user?.id;
+    if (authStatus !== 'authenticated' || !userId) return;
+
+    let active = true;
+    fetch('/api/user/preferences')
+      .then(async (response) => {
+        const result = (await response.json()) as { theme?: string; locale?: string; error?: string };
+        if (!response.ok) throw new Error(result.error ?? 'Could not load your saved preferences.');
+        return result;
+      })
+      .then((preferences) => {
+        if (!active) return;
+        if (preferences.theme === 'light' || preferences.theme === 'dark') {
+          setTheme(preferences.theme);
+          window.localStorage.setItem('devtoolkit-theme', preferences.theme);
+        }
+        if (preferences.locale === 'en' || preferences.locale === 'kh') {
+          setLocale(preferences.locale);
+          window.localStorage.setItem('devtoolkit-locale', preferences.locale);
+        }
+        setPreferencesLoadedFor(userId);
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        const message = error instanceof Error ? error.message : 'Could not load your saved preferences.';
+        toast.error(message);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [authStatus, session?.user?.id]);
 
   const texts = i18n[locale];
   const navLinks = [
@@ -94,17 +132,33 @@ export default function Topbar() {
     document.documentElement.lang = locale === 'kh' ? 'km' : 'en';
   }, [locale]);
 
+  const savePreference = async (preference: { theme?: 'light' | 'dark'; locale?: 'en' | 'kh' }) => {
+    if (authStatus !== 'authenticated' || !session?.user?.id || preferencesLoadedFor !== session.user.id) return;
+
+    try {
+      const response = await fetch('/api/user/preferences', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(preference),
+      });
+      const result = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(result.error ?? 'Could not sync your preferences.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not sync your preferences.';
+      toast.error(message);
+    }
+  };
+
   const toggleTheme = () => {
-    setTheme((current) => {
-      const next = current === 'dark' ? 'light' : 'dark';
-      try {
-        window.localStorage.setItem('devtoolkit-theme', next);
-        setUserSelectedTheme(true);
-      } catch {
-        // ignore localStorage write failures
-      }
-      return next;
-    });
+    const next = theme === 'dark' ? 'light' : 'dark';
+    setTheme(next);
+    try {
+      window.localStorage.setItem('devtoolkit-theme', next);
+      setUserSelectedTheme(true);
+    } catch {
+      toast.error('Could not save the theme on this device.');
+    }
+    void savePreference({ theme: next });
   };
 
   const handleLocaleChange = (value: 'en' | 'kh') => {
@@ -113,8 +167,9 @@ export default function Topbar() {
       window.localStorage.setItem('devtoolkit-locale', value);
       setUserSelectedLocale(true);
     } catch {
-      // ignore localStorage write failures
+      toast.error('Could not save the language on this device.');
     }
+    void savePreference({ locale: value });
   };
 
   return (
@@ -163,9 +218,34 @@ export default function Topbar() {
                 onClick={() => setSupportOpen(true)}
                 aria-label={texts.support}
               >
-                <HandCoins size={14} className="mr-2" />
+                <HandCoins size={14} />
                 {texts.support}
               </button>
+              {authStatus === 'authenticated' ? (
+                <>
+                  <span className="hidden max-w-32 truncate text-xs text-muted-foreground xl:inline">
+                    {session.user?.name ?? session.user?.email}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn-ghost hidden rounded-md px-3 py-1.5 text-sm font-medium lg:inline-flex"
+                    onClick={() => void signOut()}
+                  >
+                    <LogOut size={14} />
+                    Sign out
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className="btn-ghost hidden rounded-md px-3 py-1.5 text-sm font-medium lg:inline-flex"
+                  onClick={() => void signIn('google')}
+                  disabled={authStatus === 'loading'}
+                >
+                  <LogIn size={14} />
+                  Sign in
+                </button>
+              )}
               <button
                 type="button"
                 className="btn-ghost hidden rounded-md px-3 py-1.5 text-sm font-medium lg:inline-flex"
@@ -273,6 +353,37 @@ export default function Topbar() {
               );
             })}
             <div className="flex flex-col gap-3 pt-2 border-t border-border">
+              {authStatus === 'authenticated' ? (
+                <div className="flex items-center justify-between gap-3">
+                  <span className="min-w-0 truncate text-xs text-muted-foreground">
+                    {session.user?.name ?? session.user?.email}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn-ghost px-4 py-2 rounded-md text-sm font-medium"
+                    onClick={() => {
+                      setMobileOpen(false);
+                      void signOut();
+                    }}
+                  >
+                    <LogOut size={14} />
+                    Sign out
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="btn-ghost w-full px-4 py-2 rounded-md text-left text-sm font-medium"
+                  onClick={() => {
+                    setMobileOpen(false);
+                    void signIn('google');
+                  }}
+                  disabled={authStatus === 'loading'}
+                >
+                  <LogIn size={14} />
+                  Sign in with Google
+                </button>
+              )}
               <button
                 type="button"
                 className="btn-ghost w-full px-4 py-2 rounded-md text-left text-sm font-medium"
@@ -281,10 +392,8 @@ export default function Topbar() {
                   setMobileOpen(false);
                 }}
               >
-                <span className="inline-flex items-center gap-2">
-                  <HandCoins size={14} />
-                  {texts.support}
-                </span>
+                <HandCoins size={14} />
+                {texts.support}
               </button>
               <button
                 type="button"
