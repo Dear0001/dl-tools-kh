@@ -381,9 +381,9 @@ export const TOOLS: Tool[] = [
   {
     id: 'tool-pdf-word-converter',
     name: 'PDF ↔ Word Converter',
-    description: 'Convert PDF and DOCX files with English and Khmer OCR for scanned documents.',
+    description: 'Convert selectable PDF text and Word documents locally in your browser.',
     category: 'documents',
-    tags: ['pdf', 'word', 'docx', 'convert', 'khmer', 'ocr'],
+    tags: ['pdf', 'word', 'docx', 'convert', 'local'],
     icon: 'Files',
     popular: true,
     isNew: true,
@@ -400,9 +400,9 @@ export const TOOLS: Tool[] = [
   {
     id: 'tool-image-to-word',
     name: 'Image to Word',
-    description: 'Recognize text in an image and convert it into an editable Word document.',
+    description: 'Place one or more images into a downloadable Word document.',
     category: 'documents',
-    tags: ['image', 'ocr', 'word', 'docx', 'convert', 'khmer'],
+    tags: ['image', 'word', 'docx', 'convert'],
     icon: 'FileText',
     isNew: true,
   },

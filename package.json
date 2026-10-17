@@ -69,14 +69,17 @@
     "diff": "^7.0.0",
     "docx": "^9.12.0",
     "geist": "^1.7.2",
+    "html2canvas": "^1.4.1",
     "js-beautify": "^1.15.1",
     "js-yaml": "^4.3.2",
     "json-to-ts": "^2.1.0",
     "jspdf": "^4.2.1",
     "jsqr": "^1.4.0",
     "lucide-react": "^1.7.0",
+    "mammoth": "^1.13.0",
     "next": "15.5.28",
     "next-auth": "^5.0.0-beta.32",
+    "pdfjs-dist": "^4.10.38",
     "prettier": "^3.5.3",
     "prettier-plugin-sql": "^0.18.1",
     "qrcode": "^1.5.4",
@@ -85,8 +88,7 @@
     "react-hook-form": "^7.84.0",
     "recharts": "^2.15.2",
     "sonner": "^1.7.4",
-    "sql-formatter": "^15.4.2",
-    "tesseract.js": "^7.0.0"
+    "sql-formatter": "^15.4.2"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

@@ -9,14 +9,8 @@ import type { jsPDF as JsPdfDocument } from 'jspdf';
 
 type ConversionMode = 'pdf-to-docx' | 'docx-to-pdf' | 'image-to-pdf' | 'image-to-docx';
 type ConversionResult = { url: string; previewUrl: string; filename: string; type: 'application/pdf' | 'docx' };
-type JsonObject = Record<string, unknown>;
-type UploadForm = { url: string; parameters: Record<string, string> };
 
 const MAX_FILE_SIZE = 25 * 1024 * 1024;
-
-function isObject(value: unknown): value is JsonObject {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 function loadBrowserImage(file: File): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -34,15 +28,37 @@ function loadBrowserImage(file: File): Promise<HTMLImageElement> {
   });
 }
 
-function getResponseError(
-  response: Response,
-  fallback: string,
-  translate: (key: 'rateLimited' | 'fileTooLarge' | 'serviceUnavailable') => string,
-): string {
-  if (response.status === 429) return translate('rateLimited');
-  if (response.status === 413) return translate('fileTooLarge');
-  if (response.status === 503 || response.status === 502) return translate('serviceUnavailable');
-  return fallback;
+function sanitizeDocumentHtml(html: string): string {
+  const parsed = new DOMParser().parseFromString(html, 'text/html');
+  const allowed = new Set(['P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'UL', 'OL', 'LI', 'BLOCKQUOTE', 'TABLE', 'THEAD', 'TBODY', 'TR', 'TD', 'TH', 'STRONG', 'B', 'EM', 'I', 'U', 'S', 'SUP', 'SUB', 'BR', 'IMG']);
+  const clean = (parent: ParentNode) => {
+    for (const child of Array.from(parent.childNodes)) {
+      if (!(child instanceof HTMLElement)) continue;
+      if (!allowed.has(child.tagName)) {
+        if (['SCRIPT', 'STYLE', 'IFRAME', 'OBJECT', 'EMBED', 'SVG'].includes(child.tagName)) child.remove();
+        else {
+          clean(child);
+          child.replaceWith(...Array.from(child.childNodes));
+        }
+        continue;
+      }
+      const source = child.tagName === 'IMG' ? child.getAttribute('src') : null;
+      const alt = child.tagName === 'IMG' ? child.getAttribute('alt') : null;
+      for (const attribute of Array.from(child.attributes)) child.removeAttribute(attribute.name);
+      if (child.tagName === 'IMG') {
+        if (!source || !/^data:image\/(png|jpeg|gif|bmp);base64,/i.test(source)) {
+          child.remove();
+          continue;
+        }
+        child.setAttribute('src', source);
+        if (alt) child.setAttribute('alt', alt);
+        child.setAttribute('style', 'max-width:100%;height:auto');
+      }
+      clean(child);
+    }
+  };
+  clean(parsed.body);
+  return parsed.body.innerHTML;
 }
 
 export default function DocumentConverterPanel({ tool: _tool }: { tool: Tool }) {
@@ -60,9 +76,6 @@ export default function DocumentConverterPanel({ tool: _tool }: { tool: Tool }) 
   const [result, setResult] = useState<ConversionResult | null>(null);
   const [sourcePreviewUrls, setSourcePreviewUrls] = useState<Array<{ name: string; url: string }>>([]);
   const inputRef = useRef<HTMLInputElement>(null);
-  const xhrRef = useRef<XMLHttpRequest | null>(null);
-  const requestControllerRef = useRef<AbortController | null>(null);
-  const conversionTokenRef = useRef<string | null>(null);
   const localResultUrlRef = useRef('');
 
   useEffect(() => {
@@ -74,13 +87,6 @@ export default function DocumentConverterPanel({ tool: _tool }: { tool: Tool }) 
     setSourcePreviewUrls(previews);
     return () => previews.forEach(({ url }) => URL.revokeObjectURL(url));
   }, [files, mode]);
-
-  useEffect(() => {
-    return () => {
-      xhrRef.current?.abort();
-      requestControllerRef.current?.abort();
-    };
-  }, []);
 
   useEffect(() => () => {
     if (localResultUrlRef.current) URL.revokeObjectURL(localResultUrlRef.current);
@@ -173,6 +179,107 @@ export default function DocumentConverterPanel({ tool: _tool }: { tool: Tool }) 
     setResult({ url, previewUrl: '', filename: `${baseName}${files.length > 1 ? '-images' : ''}.docx`, type: 'docx' });
   };
 
+  const convertPdfToWord = async () => {
+    const [{ getDocument, GlobalWorkerOptions }, { Document, Packer, Paragraph }] = await Promise.all([
+      import('pdfjs-dist'),
+      import('docx'),
+    ]);
+    GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
+    const pdf = await getDocument({ data: new Uint8Array(await file!.arrayBuffer()) }).promise;
+    if (pdf.numPages > 100) throw new Error(t('tooManyPdfPages'));
+    const paragraphs: DocxParagraph[] = [];
+    let extractedCharacters = 0;
+    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+      setProgress(Math.round((pageNumber / pdf.numPages) * 80));
+      const page = await pdf.getPage(pageNumber);
+      const content = await page.getTextContent();
+      const items = content.items.filter((item): item is typeof item & { str: string; transform: number[]; width: number } => 'str' in item && 'transform' in item && 'width' in item);
+      const rows: Array<{ y: number; items: typeof items }> = [];
+      for (const item of items) {
+        const y = item.transform[5];
+        let row = rows.find((candidate) => Math.abs(candidate.y - y) < 3);
+        if (!row) {
+          row = { y, items: [] };
+          rows.push(row);
+        }
+        row.items.push(item);
+      }
+      rows.sort((a, b) => b.y - a.y);
+      rows.forEach((row, rowIndex) => {
+        row.items.sort((a, b) => a.transform[4] - b.transform[4]);
+        let line = '';
+        let previousEnd = 0;
+        row.items.forEach((item, itemIndex) => {
+          const x = item.transform[4];
+          if (itemIndex > 0 && x - previousEnd > Math.max(2, Math.abs(item.transform[0]) * 0.25)) line += ' ';
+          line += item.str;
+          previousEnd = x + item.width;
+        });
+        if (line.trim()) {
+          extractedCharacters += line.trim().length;
+          paragraphs.push(new Paragraph({ text: line, pageBreakBefore: rowIndex === 0 && pageNumber > 1 }));
+        }
+      });
+    }
+    await pdf.destroy();
+    if (extractedCharacters === 0) throw new Error(t('pdfNeedsOcr'));
+    const blob = await Packer.toBlob(new Document({ sections: [{ children: paragraphs }] }));
+    const url = URL.createObjectURL(blob);
+    localResultUrlRef.current = url;
+    setResult({ url, previewUrl: '', filename: `${file!.name.replace(/\.pdf$/i, '') || 'converted'}.docx`, type: 'docx' });
+  };
+
+  const convertWordToPdf = async () => {
+    const [{ default: mammoth }, html2canvasModule, { jsPDF }] = await Promise.all([
+      import('mammoth'),
+      import('html2canvas'),
+      import('jspdf'),
+    ]);
+    const htmlResult = await mammoth.convertToHtml({ arrayBuffer: await file!.arrayBuffer() });
+    setProgress(35);
+    const container = document.createElement('div');
+    container.setAttribute('aria-hidden', 'true');
+    container.style.cssText = 'position:fixed;left:0;top:0;width:794px;padding:48px;box-sizing:border-box;background:#fff;color:#111;font:16px/1.5 Arial,sans-serif;z-index:-1;';
+    container.innerHTML = sanitizeDocumentHtml(htmlResult.value);
+    container.querySelectorAll('p,h1,h2,h3,h4,h5,h6,li,blockquote,table').forEach((element) => {
+      (element as HTMLElement).style.margin = '0 0 12px';
+      (element as HTMLElement).style.wordBreak = 'break-word';
+    });
+    container.querySelectorAll('table').forEach((table) => {
+      (table as HTMLElement).style.cssText += 'width:100%;border-collapse:collapse;';
+    });
+    document.body.append(container);
+    try {
+      await Promise.all(Array.from(container.querySelectorAll('img')).map((image) => image.decode().catch(() => undefined)));
+      const canvas = await html2canvasModule.default(container, { scale: 1.25, backgroundColor: '#ffffff', useCORS: false, logging: false });
+      setProgress(55);
+      if (canvas.height > 30_000) throw new Error(t('documentTooLong'));
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const sliceHeight = Math.floor(canvas.width * pageHeight / pageWidth);
+      const pageCanvas = document.createElement('canvas');
+      pageCanvas.width = canvas.width;
+      const pageContext = pageCanvas.getContext('2d');
+      if (!pageContext) throw new Error(t('conversionFailed'));
+      for (let offset = 0, pageIndex = 0; offset < canvas.height; offset += sliceHeight, pageIndex += 1) {
+        setProgress(Math.min(90, Math.round((offset / canvas.height) * 90)));
+        const height = Math.min(sliceHeight, canvas.height - offset);
+        pageCanvas.height = height;
+        pageContext.clearRect(0, 0, pageCanvas.width, height);
+        pageContext.drawImage(canvas, 0, offset, canvas.width, height, 0, 0, canvas.width, height);
+        if (pageIndex > 0) pdf.addPage('a4', 'portrait');
+        pdf.addImage(pageCanvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, pageWidth, pageHeight * height / sliceHeight, undefined, 'FAST');
+      }
+      const blob = pdf.output('blob');
+      const url = URL.createObjectURL(blob);
+      localResultUrlRef.current = url;
+      setResult({ url, previewUrl: url, filename: `${file!.name.replace(/\.docx$/i, '') || 'converted'}.pdf`, type: 'application/pdf' });
+    } finally {
+      container.remove();
+    }
+  };
+
   const selectFiles = (nextFiles?: File[]) => {
     clearResult();
     setProgress(0);
@@ -225,164 +332,27 @@ export default function DocumentConverterPanel({ tool: _tool }: { tool: Tool }) 
     setProgress(0);
   };
 
-  const cancelJob = async (token: string) => {
-    try {
-      const response = await fetch('/api/converter/jobs', {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!response.ok) console.error(`Could not cancel conversion job (${response.status}).`);
-    } catch (cancelError) {
-      console.error('Could not cancel conversion job.', cancelError);
-    }
-  };
-
   const convert = async () => {
     if (!file || files.length === 0 || busy) return;
-    const controller = new AbortController();
-    requestControllerRef.current = controller;
     setBusy(true);
     setProgress(0);
     setError('');
 
     try {
-      if (isImageMode) {
-        setProgress(5);
-        if (mode === 'image-to-pdf') await convertImagesToPdf();
-        else await convertImagesToWord();
-        setProgress(100);
-        return;
-      }
-
-      const startResponse = await fetch('/api/converter/jobs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode, filename: file.name, size: file.size }),
-        signal: controller.signal,
-      });
-      if (!startResponse.ok) throw new Error(getResponseError(startResponse, t('conversionFailed'), (key) => t(key)));
-
-      const startPayload: unknown = await startResponse.json();
-      if (
-        !isObject(startPayload) ||
-        typeof startPayload.token !== 'string'
-      ) {
-        throw new Error(t('serviceUnavailable'));
-      }
-      const token = startPayload.token;
-      const uploadPayload = startPayload.upload;
-      const uploadIsValid = isObject(uploadPayload) && typeof uploadPayload.url === 'string' &&
-        isObject(uploadPayload.parameters) && Object.values(uploadPayload.parameters).every((parameter) => typeof parameter === 'string');
-      if (!/^[a-f0-9]{64}$/i.test(token) || !uploadIsValid) {
-        throw new Error(t('serviceUnavailable'));
-      }
-      conversionTokenRef.current = token;
-
-      const upload = uploadPayload as UploadForm;
-      await new Promise<void>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhrRef.current = xhr;
-        xhr.open('POST', upload.url);
-        xhr.timeout = 240_000;
-        xhr.upload.onprogress = (event) => {
-          if (event.lengthComputable) setProgress(Math.min(45, Math.round((event.loaded / event.total) * 45)));
-        };
-        xhr.onload = () => {
-          xhrRef.current = null;
-          if (xhr.status >= 200 && xhr.status < 300) resolve();
-          else reject(new Error(t('conversionFailed')));
-        };
-        xhr.onerror = () => {
-          xhrRef.current = null;
-          reject(new Error(t('serviceUnavailable')));
-        };
-        xhr.ontimeout = () => {
-          xhrRef.current = null;
-          reject(new Error(t('conversionFailed')));
-        };
-        xhr.onabort = () => {
-          xhrRef.current = null;
-          reject(new DOMException('Upload aborted.', 'AbortError'));
-        };
-        controller.signal.addEventListener('abort', () => xhr.abort(), { once: true });
-
-        const uploadData = new FormData();
-        Object.entries(upload.parameters).forEach(([name, value]) => uploadData.append(name, value));
-        uploadData.append('file', file, file.name);
-        xhr.send(uploadData);
-      });
-      setProgress(45);
-
-      const deadline = Date.now() + 8 * 60 * 1000;
-      while (Date.now() < deadline) {
-        await new Promise<void>((resolve, reject) => {
-          const timeoutId = window.setTimeout(resolve, 2000);
-          controller.signal.addEventListener(
-            'abort',
-            () => {
-              window.clearTimeout(timeoutId);
-              reject(new DOMException('Conversion cancelled.', 'AbortError'));
-            },
-            { once: true },
-          );
-        });
-        const statusResponse = await fetch('/api/converter/jobs', {
-          headers: { Authorization: `Bearer ${token}` },
-          cache: 'no-store',
-          signal: controller.signal,
-        });
-        if (!statusResponse.ok) {
-          throw new Error(getResponseError(statusResponse, t('conversionFailed'), (key) => t(key)));
-        }
-
-        const statusPayload: unknown = await statusResponse.json();
-        if (!isObject(statusPayload) || typeof statusPayload.status !== 'string') {
-          throw new Error(t('serviceUnavailable'));
-        }
-        if (statusPayload.status === 'error') throw new Error(t('conversionFailed'));
-        if (statusPayload.status === 'finished') {
-          if (
-            typeof statusPayload.filename !== 'string' ||
-            typeof statusPayload.downloadUrl !== 'string' ||
-            typeof statusPayload.previewUrl !== 'string'
-          ) {
-            throw new Error(t('serviceUnavailable'));
-          }
-          setProgress(100);
-          setResult({
-            url: statusPayload.downloadUrl,
-            previewUrl: statusPayload.previewUrl,
-            filename: statusPayload.filename,
-            type: mode === 'docx-to-pdf' ? 'application/pdf' : 'docx',
-          });
-          return;
-        }
-        if (statusPayload.status !== 'waiting' && statusPayload.status !== 'processing') {
-          throw new Error(t('serviceUnavailable'));
-        }
-        setProgress(70);
-      }
-      throw new Error(t('conversionFailed'));
+      setProgress(5);
+      if (mode === 'pdf-to-docx') await convertPdfToWord();
+      else if (mode === 'docx-to-pdf') await convertWordToPdf();
+      else if (mode === 'image-to-pdf') await convertImagesToPdf();
+      else await convertImagesToWord();
+      setProgress(100);
     } catch (conversionError) {
-      if (!controller.signal.aborted) {
-        setError(conversionError instanceof Error ? conversionError.message : t('conversionFailed'));
-        const token = conversionTokenRef.current;
-        conversionTokenRef.current = null;
-        if (token) void cancelJob(token);
-      }
+      setError(conversionError instanceof Error ? conversionError.message : t('conversionFailed'));
     } finally {
       setBusy(false);
-      requestControllerRef.current = null;
-      xhrRef.current = null;
     }
   };
 
   const reset = () => {
-    const token = conversionTokenRef.current;
-    conversionTokenRef.current = null;
-    requestControllerRef.current?.abort();
-    xhrRef.current?.abort();
-    if (token) void cancelJob(token);
     setBusy(false);
     setFiles([]);
     setProgress(0);
@@ -431,7 +401,7 @@ export default function DocumentConverterPanel({ tool: _tool }: { tool: Tool }) 
             </div>
           </div>
           <p className="relative mt-5 rounded-lg border border-border/70 bg-background/60 px-3 py-2.5 text-xs leading-5 text-muted-foreground">
-            {isImageMode ? t('localImagePrivacy') : t('privacyNotice')}
+            {isImageMode ? t('localImagePrivacy') : t('localDocumentPrivacy')}
           </p>
         </header>
 
@@ -521,12 +491,12 @@ export default function DocumentConverterPanel({ tool: _tool }: { tool: Tool }) 
             <div className="mt-4 space-y-2" aria-live="polite">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <LoaderCircle size={15} className="animate-spin text-primary" aria-hidden="true" />
-                <span>{progress < 45 ? t('uploading') : t('converting')}</span>
+                <span>{t('converting')}</span>
               </div>
               <div className="h-1.5 overflow-hidden rounded-full bg-muted">
                 <div
-                  className={`h-full bg-primary transition-all duration-300 ${progress >= 45 ? 'w-full animate-pulse opacity-60' : ''}`}
-                  style={progress < 45 ? { width: `${Math.max(progress, 5)}%` } : undefined}
+                  className="h-full bg-primary transition-all duration-300"
+                  style={{ width: `${Math.max(progress, 5)}%` }}
                 />
               </div>
             </div>
@@ -576,7 +546,7 @@ export default function DocumentConverterPanel({ tool: _tool }: { tool: Tool }) 
               ) : null}
 
               <p className="text-xs leading-5 text-muted-foreground">
-                {mode === 'image-to-docx' ? t('localOcrNote') : mode === 'pdf-to-docx' ? `${t('layoutNote')} ${t('scannedPdf')}` : t('layoutNote')}
+                {mode === 'image-to-docx' ? t('localOcrNote') : mode === 'pdf-to-docx' ? t('localPdfNote') : mode === 'docx-to-pdf' ? t('localWordNote') : t('layoutNote')}
               </p>
               <button type="button" className="btn-ghost px-4 py-2 text-sm" onClick={reset}>
                 {t('convertAnother')}
@@ -596,7 +566,7 @@ export default function DocumentConverterPanel({ tool: _tool }: { tool: Tool }) 
         </section>
 
         <p className="px-1 text-xs leading-5 text-muted-foreground">
-          {isImageMode ? t('localOcrNote') : mode === 'pdf-to-docx' ? t('scannedPdf') : t('layoutNote')}
+          {isImageMode ? t('localOcrNote') : mode === 'pdf-to-docx' ? t('localPdfNote') : t('localWordNote')}
         </p>
       </div>
     </div>
