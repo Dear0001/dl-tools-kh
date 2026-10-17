@@ -1,7 +1,8 @@
-﻿import React from 'react';
+import React from 'react';
 import type { Metadata, Viewport } from 'next';
 import Script from 'next/script';
 import { GeistSans } from 'geist/font/sans';
+import { Analytics } from '@vercel/analytics/next';
 import Topbar from '@/components/Topbar';
 import AuthProvider from '@/components/AuthProvider';
 import GoogleAnalytics from '@/components/GoogleAnalytics';
@@ -51,6 +52,7 @@ export default function RootLayout({
             strategy="afterInteractive"
             type="module"
           />
+          <Analytics />
         </AuthProvider>
       </body>
     </html>
