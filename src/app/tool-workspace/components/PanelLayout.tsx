@@ -4,6 +4,7 @@ import { Copy, Download, Trash2, ArrowLeftRight, CheckCircle2 } from 'lucide-rea
 import { toast } from 'sonner';
 import { localizeControlContent, translateText, useLocale } from '@/i18n/LocaleProvider';
 
+
 interface PanelLayoutProps {
   inputPanel: React.ReactNode;
   outputPanel: React.ReactNode;
