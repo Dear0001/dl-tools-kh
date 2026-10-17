@@ -46,6 +46,9 @@ import EncodingToolkitPanel from './tools/EncodingToolkitPanel';
 import ApiTesterPanel from './tools/ApiTesterPanel';
 import IpCidrPanel from './tools/IpCidrPanel';
 import CertificateInspectorPanel from './tools/CertificateInspectorPanel';
+import MarkdownFormatterPanel from './tools/MarkdownFormatterPanel';
+import SvgViewerPanel from './tools/SvgViewerPanel';
+import SqlQueryBuilderPanel from './tools/SqlQueryBuilderPanel';
 
 const PANEL_MAP: Record<string, React.ComponentType<{ tool: Tool }>> = {
   'tool-json-formatter': JsonFormatterPanel,
@@ -78,6 +81,9 @@ const PANEL_MAP: Record<string, React.ComponentType<{ tool: Tool }>> = {
   'tool-api-tester': ApiTesterPanel,
   'tool-ip-cidr': IpCidrPanel,
   'tool-certificate-inspector': CertificateInspectorPanel,
+  'tool-markdown-formatter': MarkdownFormatterPanel,
+  'tool-svg-viewer': SvgViewerPanel,
+  'tool-sql-builder': SqlQueryBuilderPanel,
   'tool-json-schema': JsonSchemaPanel,
   'tool-jsonpath': JsonPathPanel,
   'tool-data-converter': DataConverterPanel,
