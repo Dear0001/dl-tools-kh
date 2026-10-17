@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 export const runtime = 'nodejs';
 
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+const MAX_IMAGE_FILES = 20;
 const RATE_LIMIT = 5;
 const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
 const JOB_TTL_MS = 24 * 60 * 60 * 1000;
@@ -86,10 +87,10 @@ function parseProviderJob(value: unknown): JsonObject | null {
   return value.data;
 }
 
-function getImportForm(job: JsonObject): { url: string; parameters: Record<string, string> } | null {
+function getImportForm(job: JsonObject, taskName = 'import-file'): { url: string; parameters: Record<string, string> } | null {
   const tasks = job.tasks;
   if (!Array.isArray(tasks)) return null;
-  const task = tasks.find((item) => isObject(item) && item.name === 'import-file');
+  const task = tasks.find((item) => isObject(item) && item.name === taskName);
   if (!isObject(task) || !isObject(task.result) || !isObject(task.result.form)) return null;
 
   const { url, parameters } = task.result.form;
@@ -179,22 +180,44 @@ export async function POST(request: Request) {
 
   if (!isObject(body)) return Response.json({ error: 'Invalid conversion request.' }, { status: 400 });
   const mode = getMode(body.mode);
-  if (!mode || typeof body.filename !== 'string' || typeof body.size !== 'number' || !Number.isSafeInteger(body.size)) {
+  if (!mode) {
     return Response.json({ error: 'Choose a supported conversion and provide a filename and file size.' }, { status: 400 });
   }
 
-  const filename = safeFilename(body.filename);
+  const isImageMode = mode === 'image-to-pdf' || mode === 'image-to-docx';
+  if (!isImageMode && (typeof body.filename !== 'string' || typeof body.size !== 'number' || !Number.isSafeInteger(body.size))) {
+    return Response.json({ error: 'Choose a supported conversion and provide a filename and file size.' }, { status: 400 });
+  }
+  const imageFiles = isImageMode && Array.isArray(body.files) ? body.files : null;
+  if (isImageMode && (!imageFiles || imageFiles.length < 1 || imageFiles.length > MAX_IMAGE_FILES)) {
+    return Response.json({ error: `Choose between 1 and ${MAX_IMAGE_FILES} images.` }, { status: 400 });
+  }
+  const inputs = imageFiles
+    ? imageFiles.map((item) => {
+        if (!isObject(item) || typeof item.filename !== 'string' || typeof item.size !== 'number' || !Number.isSafeInteger(item.size)) {
+          return null;
+        }
+        return { filename: safeFilename(item.filename), size: item.size };
+      })
+    : typeof body.filename === 'string' && typeof body.size === 'number'
+      ? [{ filename: safeFilename(body.filename), size: body.size }]
+      : [];
+  if (inputs.length === 0 || inputs.some((item) => !item || item.size <= 0)) {
+    return Response.json({ error: 'Choose supported files and provide their sizes.' }, { status: 400 });
+  }
+  const files = inputs as Array<{ filename: string; size: number }>;
+  const filename = files[0].filename;
   const expectedExtension = mode === 'pdf-to-docx' ? '.pdf' : mode === 'docx-to-pdf' ? '.docx' : '';
-  const size = body.size;
-  const extension = filename.toLowerCase().slice(filename.lastIndexOf('.'));
   const supportedImageExtensions = ['.jpg', '.jpeg', '.png', '.tif', '.tiff', '.webp', '.bmp', '.gif'];
-  const validExtension = mode === 'image-to-pdf' || mode === 'image-to-docx'
-    ? supportedImageExtensions.includes(extension)
-    : filename.toLowerCase().endsWith(expectedExtension);
-  if (!validExtension || size <= 0) {
+  const validFiles = files.every(({ filename: inputName }) => {
+    const lowerName = inputName.toLowerCase();
+    const extension = lowerName.slice(lowerName.lastIndexOf('.'));
+    return isImageMode ? supportedImageExtensions.includes(extension) : lowerName.endsWith(expectedExtension);
+  });
+  if (!validFiles) {
     return Response.json({ error: 'The file type or size is invalid for this conversion.' }, { status: 400 });
   }
-  if (size > MAX_UPLOAD_BYTES) {
+  if (files.reduce((total, item) => total + item.size, 0) > MAX_UPLOAD_BYTES) {
     return Response.json({ error: 'The file exceeds the 25 MB upload limit.' }, { status: 413 });
   }
 
@@ -214,15 +237,25 @@ export async function POST(request: Request) {
 
   const outputExtension = mode === 'pdf-to-docx' || mode === 'image-to-docx' ? '.docx' : '.pdf';
   const nameWithoutExtension = filename.slice(0, filename.lastIndexOf('.')) || 'converted';
-  const outputFilename = `${nameWithoutExtension}${outputExtension}`;
-  const tasks: JsonObject = {
-    'import-file': { operation: 'import/upload' },
-  };
+  const outputFilename = `${nameWithoutExtension}${files.length > 1 ? '-images' : ''}${outputExtension}`;
+  const importTaskNames = files.map((_, index) => files.length === 1 ? 'import-file' : `import-file-${index + 1}`);
+  const tasks: JsonObject = {};
+  importTaskNames.forEach((taskName) => { tasks[taskName] = { operation: 'import/upload' }; });
+  let finalInput = importTaskNames[0];
+  if (isImageMode) {
+    const mergeTaskName = mode === 'image-to-docx' ? 'merge-images' : 'convert-file';
+    tasks[mergeTaskName] = {
+      operation: 'merge',
+      input: importTaskNames,
+      output_format: 'pdf',
+      filename: mode === 'image-to-docx' ? `${nameWithoutExtension}-images.pdf` : outputFilename,
+    };
+    finalInput = mergeTaskName;
+  }
   if (mode === 'image-to-docx') {
-    tasks['image-to-pdf'] = { operation: 'convert', input: 'import-file', output_format: 'pdf' };
     tasks['ocr-image-pdf'] = {
       operation: 'pdf/ocr',
-      input: 'image-to-pdf',
+      input: finalInput,
       language: ['eng', 'khm'],
     };
     tasks['convert-file'] = {
@@ -231,7 +264,7 @@ export async function POST(request: Request) {
       output_format: 'docx',
       filename: outputFilename,
     };
-  } else {
+  } else if (!isImageMode) {
     tasks['convert-file'] = {
       operation: 'convert',
       input: 'import-file',
@@ -267,8 +300,8 @@ export async function POST(request: Request) {
 
   const providerJob = parseProviderJob(providerPayload);
   const providerJobId = providerJob?.id;
-  const upload = providerJob && getImportForm(providerJob);
-  if (typeof providerJobId !== 'string' || !upload) {
+  const uploads = providerJob && importTaskNames.map((taskName) => getImportForm(providerJob, taskName));
+  if (typeof providerJobId !== 'string' || !uploads || uploads.some((upload) => !upload)) {
     console.error('CloudConvert job response did not include an upload form.');
     if (typeof providerJobId === 'string') {
       try {
@@ -301,7 +334,10 @@ export async function POST(request: Request) {
     throw error;
   }
 
-  return Response.json({ token: accessToken, upload }, { status: 201 });
+  return Response.json({
+    token: accessToken,
+    ...(isImageMode ? { uploads } : { upload: uploads[0] }),
+  }, { status: 201 });
 }
 
 export async function GET(request: Request) {

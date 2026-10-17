@@ -8,11 +8,19 @@ import { useLocale } from '@/i18n/LocaleProvider';
 type ConversionMode = 'pdf-to-docx' | 'docx-to-pdf' | 'image-to-pdf' | 'image-to-docx';
 type ConversionResult = { url: string; previewUrl: string; filename: string; type: 'application/pdf' | 'docx' };
 type JsonObject = Record<string, unknown>;
+type UploadForm = { url: string; parameters: Record<string, string> };
 
 const MAX_FILE_SIZE = 25 * 1024 * 1024;
 
 function isObject(value: unknown): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isUploadForm(value: unknown): value is UploadForm {
+  return isObject(value) &&
+    typeof value.url === 'string' &&
+    isObject(value.parameters) &&
+    Object.values(value.parameters).every((parameter) => typeof parameter === 'string');
 }
 
 function getResponseError(
@@ -31,27 +39,29 @@ export default function DocumentConverterPanel({ tool: _tool }: { tool: Tool }) 
   const [mode, setMode] = useState<ConversionMode>(() =>
     _tool.id === 'tool-image-to-pdf' ? 'image-to-pdf' : _tool.id === 'tool-image-to-word' ? 'image-to-docx' : 'pdf-to-docx',
   );
-  const [file, setFile] = useState<File | null>(null);
+  const isImageMode = mode === 'image-to-pdf' || mode === 'image-to-docx';
+  const [files, setFiles] = useState<File[]>([]);
+  const file = files[0] ?? null;
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState('');
   const [result, setResult] = useState<ConversionResult | null>(null);
-  const [sourcePreviewUrl, setSourcePreviewUrl] = useState('');
+  const [sourcePreviewUrls, setSourcePreviewUrls] = useState<Array<{ name: string; url: string }>>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const xhrRef = useRef<XMLHttpRequest | null>(null);
   const requestControllerRef = useRef<AbortController | null>(null);
   const conversionTokenRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!file || mode === 'docx-to-pdf') {
-      setSourcePreviewUrl('');
+    if (files.length === 0 || mode === 'docx-to-pdf') {
+      setSourcePreviewUrls([]);
       return;
     }
-    const url = URL.createObjectURL(file);
-    setSourcePreviewUrl(url);
-    return () => URL.revokeObjectURL(url);
-  }, [file, mode]);
+    const previews = files.map((sourceFile) => ({ name: sourceFile.name, url: URL.createObjectURL(sourceFile) }));
+    setSourcePreviewUrls(previews);
+    return () => previews.forEach(({ url }) => URL.revokeObjectURL(url));
+  }, [files, mode]);
 
   useEffect(() => {
     return () => {
@@ -65,46 +75,53 @@ export default function DocumentConverterPanel({ tool: _tool }: { tool: Tool }) 
     setError('');
   };
 
-  const selectFile = (nextFile?: File) => {
+  const selectFiles = (nextFiles?: File[]) => {
     clearResult();
     setProgress(0);
-    if (!nextFile) {
-      setFile(null);
+    if (!nextFiles || nextFiles.length === 0) {
+      setFiles([]);
       return;
     }
-    const filename = nextFile.name.toLowerCase();
-    const isImageMode = mode === 'image-to-pdf' || mode === 'image-to-docx';
-    const validImage = /\.(jpe?g|png|tiff?|webp|bmp|gif)$/.test(filename);
-    const validDocument = mode === 'pdf-to-docx' ? filename.endsWith('.pdf') : filename.endsWith('.docx');
-    if (isImageMode ? !validImage || !nextFile.type.startsWith('image/') : !validDocument) {
-      setFile(null);
+    const selectedFiles = isImageMode ? nextFiles : nextFiles.slice(0, 1);
+    const validFiles = selectedFiles.every((nextFile) => {
+      const filename = nextFile.name.toLowerCase();
+      const validImage = /\.(jpe?g|png|tiff?|webp|bmp|gif)$/.test(filename) && nextFile.type.startsWith('image/');
+      const validDocument = mode === 'pdf-to-docx' ? filename.endsWith('.pdf') : filename.endsWith('.docx');
+      return isImageMode ? validImage : validDocument;
+    });
+    if (!validFiles) {
       setError(t('invalidFile'));
       return;
     }
-    if (nextFile.size > MAX_FILE_SIZE) {
-      setFile(null);
+    if (selectedFiles.length > 20) {
+      setError(t('tooManyImages'));
+      return;
+    }
+    if (selectedFiles.reduce((total, selected) => total + selected.size, 0) > MAX_FILE_SIZE) {
       setError(t('fileTooLarge'));
       return;
     }
     setError('');
-    setFile(nextFile);
+    setFiles(selectedFiles);
   };
 
   const onInputChange = (event: ChangeEvent<HTMLInputElement>) => {
-    selectFile(event.target.files?.[0]);
+    const nextFiles = Array.from(event.target.files ?? []);
+    selectFiles(isImageMode && files.length > 0 ? [...files, ...nextFiles] : nextFiles);
     event.target.value = '';
   };
 
   const onDrop = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     setDragging(false);
-    selectFile(event.dataTransfer.files?.[0]);
+    const nextFiles = Array.from(event.dataTransfer.files);
+    selectFiles(isImageMode && files.length > 0 ? [...files, ...nextFiles] : nextFiles);
   };
 
   const changeMode = (nextMode: ConversionMode) => {
     if (busy) return;
     setMode(nextMode);
-    setFile(null);
+    setFiles([]);
     clearResult();
     setError('');
     setProgress(0);
@@ -123,7 +140,7 @@ export default function DocumentConverterPanel({ tool: _tool }: { tool: Tool }) 
   };
 
   const convert = async () => {
-    if (!file || busy) return;
+    if (!file || files.length === 0 || busy) return;
     const controller = new AbortController();
     requestControllerRef.current = controller;
     setBusy(true);
@@ -134,7 +151,9 @@ export default function DocumentConverterPanel({ tool: _tool }: { tool: Tool }) 
       const startResponse = await fetch('/api/converter/jobs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode, filename: file.name, size: file.size }),
+        body: JSON.stringify(isImageMode
+          ? { mode, files: files.map(({ name, size }) => ({ filename: name, size })) }
+          : { mode, filename: file.name, size: file.size }),
         signal: controller.signal,
       });
       if (!startResponse.ok) throw new Error(getResponseError(startResponse, t('conversionFailed'), (key) => t(key)));
@@ -142,58 +161,59 @@ export default function DocumentConverterPanel({ tool: _tool }: { tool: Tool }) 
       const startPayload: unknown = await startResponse.json();
       if (
         !isObject(startPayload) ||
-        typeof startPayload.token !== 'string' ||
-        !isObject(startPayload.upload) ||
-        typeof startPayload.upload.url !== 'string' ||
-        !isObject(startPayload.upload.parameters)
+        typeof startPayload.token !== 'string'
       ) {
         throw new Error(t('serviceUnavailable'));
       }
       const token = startPayload.token;
-      const uploadUrl = startPayload.upload.url;
-      const parameters = startPayload.upload.parameters;
-      if (
-        !/^[a-f0-9]{64}$/i.test(token) ||
-        Object.values(parameters).some((value) => typeof value !== 'string')
-      ) {
+      const candidates = isImageMode
+        ? Array.isArray(startPayload.uploads) ? startPayload.uploads : []
+        : [startPayload.upload];
+      const uploads = candidates.filter(isUploadForm);
+      if (!/^[a-f0-9]{64}$/i.test(token) || uploads.length !== files.length) {
         throw new Error(t('serviceUnavailable'));
       }
       conversionTokenRef.current = token;
 
-      await new Promise<void>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhrRef.current = xhr;
-        xhr.open('POST', uploadUrl);
-        xhr.timeout = 240_000;
-        xhr.upload.onprogress = (event) => {
-          if (event.lengthComputable) setProgress(Math.min(45, Math.round((event.loaded / event.total) * 45)));
-        };
-        xhr.onload = () => {
-          xhrRef.current = null;
-          if (xhr.status >= 200 && xhr.status < 300) resolve();
-          else reject(new Error(t('conversionFailed')));
-        };
-        xhr.onerror = () => {
-          xhrRef.current = null;
-          reject(new Error(t('serviceUnavailable')));
-        };
-        xhr.ontimeout = () => {
-          xhrRef.current = null;
-          reject(new Error(t('conversionFailed')));
-        };
-        xhr.onabort = () => {
-          xhrRef.current = null;
-          reject(new DOMException('Upload aborted.', 'AbortError'));
-        };
-        controller.signal.addEventListener('abort', () => xhr.abort(), { once: true });
+      for (const [index, uploadFile] of files.entries()) {
+        const upload = uploads[index];
+        await new Promise<void>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhrRef.current = xhr;
+          xhr.open('POST', upload.url);
+          xhr.timeout = 240_000;
+          xhr.upload.onprogress = (event) => {
+            if (event.lengthComputable) {
+              const ratio = event.loaded / event.total;
+              setProgress(Math.min(45, Math.round(((index + ratio) / files.length) * 45)));
+            }
+          };
+          xhr.onload = () => {
+            xhrRef.current = null;
+            if (xhr.status >= 200 && xhr.status < 300) resolve();
+            else reject(new Error(t('conversionFailed')));
+          };
+          xhr.onerror = () => {
+            xhrRef.current = null;
+            reject(new Error(t('serviceUnavailable')));
+          };
+          xhr.ontimeout = () => {
+            xhrRef.current = null;
+            reject(new Error(t('conversionFailed')));
+          };
+          xhr.onabort = () => {
+            xhrRef.current = null;
+            reject(new DOMException('Upload aborted.', 'AbortError'));
+          };
+          controller.signal.addEventListener('abort', () => xhr.abort(), { once: true });
 
-        const uploadData = new FormData();
-        for (const [name, value] of Object.entries(parameters)) {
-          if (typeof value === 'string') uploadData.append(name, value);
-        }
-        uploadData.append('file', file, file.name);
-        xhr.send(uploadData);
-      });
+          const uploadData = new FormData();
+          Object.entries(upload.parameters).forEach(([name, value]) => uploadData.append(name, value));
+          uploadData.append('file', uploadFile, uploadFile.name);
+          xhr.send(uploadData);
+        });
+        setProgress(Math.round(((index + 1) / files.length) * 45));
+      }
       setProgress(45);
 
       const deadline = Date.now() + 8 * 60 * 1000;
@@ -267,13 +287,19 @@ export default function DocumentConverterPanel({ tool: _tool }: { tool: Tool }) 
     xhrRef.current?.abort();
     if (token) void cancelJob(token);
     setBusy(false);
-    setFile(null);
+    setFiles([]);
     setProgress(0);
     clearResult();
     setError('');
   };
 
-  const isImageMode = mode === 'image-to-pdf' || mode === 'image-to-docx';
+  const removeFile = (index: number) => {
+    setFiles((current) => current.filter((_, fileIndex) => fileIndex !== index));
+    clearResult();
+    setProgress(0);
+    setError('');
+  };
+
   const targetLabel = mode === 'pdf-to-docx'
     ? t('pdfToWord')
     : mode === 'docx-to-pdf'
@@ -347,25 +373,35 @@ export default function DocumentConverterPanel({ tool: _tool }: { tool: Tool }) 
                 dragging ? 'border-primary bg-primary/5' : 'border-border bg-background/40'
               }`}
             >
-              <input ref={inputRef} type="file" accept={accepted} className="sr-only" onChange={onInputChange} />
-              {file ? (
-                <div className="flex w-full max-w-lg items-center gap-3 rounded-lg border border-border bg-card px-4 py-3 text-left">
-                  <FileText size={20} className="shrink-0 text-primary" aria-hidden="true" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs text-muted-foreground">{t('selectedFile')}</p>
-                    <p className="truncate text-sm font-medium text-foreground">{file.name}</p>
-                    <p className="text-xs text-muted-foreground">{(file.size / (1024 * 1024)).toFixed(2)} MB</p>
-                  </div>
-                  <button type="button" className="btn-icon" onClick={() => selectFile(undefined)} aria-label={locale === 'kh' ? 'ដកឯកសារ' : 'Remove file'}>
-                    <X size={15} />
-                  </button>
+              <input ref={inputRef} type="file" accept={accepted} multiple={isImageMode} className="sr-only" onChange={onInputChange} />
+              {files.length > 0 ? (
+                <div className="w-full max-w-lg space-y-2 text-left">
+                  {files.map((selectedFile, index) => (
+                    <div key={`${selectedFile.name}-${selectedFile.lastModified}-${index}`} className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
+                      <FileText size={20} className="shrink-0 text-primary" aria-hidden="true" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs text-muted-foreground">{files.length > 1 ? `${t('selectedFile')} ${index + 1}` : t('selectedFile')}</p>
+                        <p className="truncate text-sm font-medium text-foreground" title={selectedFile.name}>{selectedFile.name}</p>
+                        <p className="text-xs text-muted-foreground">{(selectedFile.size / (1024 * 1024)).toFixed(2)} MB</p>
+                      </div>
+                      <button type="button" className="btn-icon" onClick={() => removeFile(index)} aria-label={locale === 'kh' ? `ដក ${selectedFile.name}` : `Remove ${selectedFile.name}`}>
+                        <X size={15} />
+                      </button>
+                    </div>
+                  ))}
+                  {isImageMode && files.length < 20 && (
+                    <button type="button" className="btn-ghost px-3 py-1.5 text-sm" onClick={() => inputRef.current?.click()}>
+                      {t('addImages')}
+                    </button>
+                  )}
+                  {isImageMode && <p className="text-xs text-muted-foreground">{files.length} {t('imagesSelected')} · {(files.reduce((sum, selected) => sum + selected.size, 0) / (1024 * 1024)).toFixed(2)} MB</p>}
                 </div>
               ) : (
                 <>
                   <div className="mb-3 rounded-full border border-border bg-card p-3 text-primary">
                     <Upload size={20} aria-hidden="true" />
                   </div>
-                  <p className="text-sm font-medium text-foreground">{t('dropFile')}</p>
+                  <p className="text-sm font-medium text-foreground">{isImageMode ? t('dropImages') : t('dropFile')}</p>
                   <p className="my-1 text-xs text-muted-foreground">{t('or')}</p>
                   <button type="button" className="btn-ghost px-3 py-1.5 text-sm" onClick={() => inputRef.current?.click()}>
                     {t('chooseFile')}
@@ -423,14 +459,21 @@ export default function DocumentConverterPanel({ tool: _tool }: { tool: Tool }) 
                   <p className="border-b border-border bg-background px-4 py-2 text-xs font-medium text-muted-foreground">{t('resultPreview')}</p>
                   <iframe title={t('resultPreview')} src={result.previewUrl} className="h-[min(65vh,48rem)] w-full bg-white" />
                 </div>
-              ) : sourcePreviewUrl ? (
+              ) : sourcePreviewUrls.length > 0 ? (
                 <div className="overflow-hidden rounded-xl border border-border">
                   <p className="border-b border-border bg-background px-4 py-2 text-xs font-medium text-muted-foreground">{isImageMode ? t('imagePreview') : t('sourcePreview')}</p>
                   {isImageMode ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={sourcePreviewUrl} alt={t('imagePreview')} className="mx-auto max-h-[min(65vh,48rem)] w-auto max-w-full object-contain" />
+                    <div className="grid max-h-[min(65vh,48rem)] grid-cols-2 gap-3 overflow-auto bg-background/40 p-3 sm:grid-cols-3">
+                      {sourcePreviewUrls.map((preview, index) => (
+                        <figure key={`${preview.name}-${index}`} className="min-w-0 rounded-lg border border-border bg-card p-2">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={preview.url} alt={preview.name} className="h-36 w-full rounded object-contain" />
+                          <figcaption className="mt-2 truncate text-xs text-muted-foreground" title={preview.name}>{preview.name}</figcaption>
+                        </figure>
+                      ))}
+                    </div>
                   ) : (
-                    <iframe title={t('sourcePreview')} src={sourcePreviewUrl} className="h-[min(65vh,48rem)] w-full bg-white" />
+                    <iframe title={t('sourcePreview')} src={sourcePreviewUrls[0].url} className="h-[min(65vh,48rem)] w-full bg-white" />
                   )}
                 </div>
               ) : null}
