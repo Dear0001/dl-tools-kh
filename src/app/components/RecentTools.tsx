@@ -6,8 +6,10 @@ import { TOOLS } from '@/data/tools';
 import { CATEGORY_COLORS } from '@/data/tools';
 import { useSession } from 'next-auth/react';
 import { toast } from 'sonner';
+import { getToolName, useLocale } from '@/i18n/LocaleProvider';
 
 export default function RecentTools() {
+  const { locale, t } = useLocale();
   const { data: session, status: authStatus } = useSession();
   const [recents, setRecents] = useState<string[] | null>(null);
   const [synced, setSynced] = useState(false);
@@ -94,10 +96,10 @@ export default function RecentTools() {
     <div>
       <div className="mb-3 flex items-center gap-2">
         <History size={14} className="text-muted-foreground" />
-        <h2 className="text-sm font-semibold text-foreground">Recently opened</h2>
+        <h2 className="text-sm font-semibold text-foreground">{t('recentTools')}</h2>
       </div>
       {recents === null ? (
-        <div className="h-8 w-48 animate-pulse rounded-md bg-muted/50" aria-label="Loading recent tools" />
+        <div className="h-8 w-48 animate-pulse rounded-md bg-muted/50" aria-label={t('recentTools')} />
       ) : tools.length > 0 ? (
         <div className="flex flex-wrap gap-2">
           {tools.map((tool) => {
@@ -108,13 +110,13 @@ export default function RecentTools() {
                   href={`/tool-workspace?tool=${tool.id}`}
                   className="rounded-l-md px-3 py-2 text-sm font-medium text-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 >
-                  {tool.name}
+                  {getToolName(tool.id, tool.name, locale)}
                 </Link>
                 <span className={`mx-1 h-1.5 w-1.5 rounded-full ${colors.bg}`} aria-hidden="true" />
                 <button
                   onClick={() => remove(tool.id)}
                   className="btn-icon h-8 w-8 rounded-l-none"
-                  aria-label={`Remove ${tool.name} from recent tools`}
+                  aria-label={`${locale === 'kh' ? 'ដក' : 'Remove'} ${getToolName(tool.id, tool.name, locale)} ${locale === 'kh' ? 'ចេញពីឧបករណ៍ថ្មីៗ' : 'from recent tools'}`}
                 >
                   <X size={13} />
                 </button>
@@ -124,7 +126,7 @@ export default function RecentTools() {
         </div>
       ) : (
         <p className="text-sm text-muted-foreground">
-          Tools you open will appear here for quick access.
+          {t('recentEmpty')}
         </p>
       )}
     </div>

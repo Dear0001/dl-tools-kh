@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Check, Copy } from 'lucide-react';
 import { toast } from 'sonner';
+import { translateText, useLocale } from '@/i18n/LocaleProvider';
 
 type CodeLanguage = 'css' | 'html' | 'java' | 'javascript' | 'json' | 'sql' | 'text' | 'typescript' | 'xml' | 'yaml';
 
@@ -114,6 +115,7 @@ function renderHighlightedLine(line: string, language: CodeLanguage, lineIndex: 
 }
 
 export default function CodeOutput({ value, placeholder, language }: CodeOutputProps) {
+  const { locale } = useLocale();
   const [copiedLine, setCopiedLine] = useState<number | null>(null);
   const lines = value.split('\n');
 
@@ -121,7 +123,7 @@ export default function CodeOutput({ value, placeholder, language }: CodeOutputP
     try {
       await navigator.clipboard.writeText(line);
       setCopiedLine(lineNumber);
-      toast.success(`Line ${lineNumber} copied`);
+      toast.success(translateText(`Line ${lineNumber} copied`, locale));
       window.setTimeout(() => setCopiedLine(null), 1600);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Clipboard access was denied.';
@@ -132,7 +134,7 @@ export default function CodeOutput({ value, placeholder, language }: CodeOutputP
   if (!value) {
     return (
       <div className="flex h-full items-start p-4 font-mono-code text-[13px] leading-6 text-muted-foreground">
-        {placeholder}
+        {translateText(placeholder, locale)}
       </div>
     );
   }
@@ -141,7 +143,7 @@ export default function CodeOutput({ value, placeholder, language }: CodeOutputP
     <div
       className="scrollbar-thin h-full overflow-auto bg-background py-3 font-mono-code text-[13px] leading-6 text-foreground"
       role="region"
-      aria-label="Code output"
+      aria-label={locale === 'kh' ? 'លទ្ធផលកូដ' : 'Code output'}
     >
       <div className="w-max min-w-full">
         {lines.map((line, index) => {
@@ -153,7 +155,7 @@ export default function CodeOutput({ value, placeholder, language }: CodeOutputP
               className="group flex min-h-6 w-max min-w-full items-start gap-3 px-3 transition-colors hover:bg-muted/50"
               key={lineNumber}
               role="group"
-              aria-label={`Line ${lineNumber}`}
+              aria-label={locale === 'kh' ? `បន្ទាត់ ${lineNumber}` : `Line ${lineNumber}`}
             >
               <span
                 className="sticky left-0 w-8 shrink-0 select-none bg-background pr-1 text-right text-[11px] tabular-nums text-muted-foreground"
@@ -168,8 +170,8 @@ export default function CodeOutput({ value, placeholder, language }: CodeOutputP
                 className="sticky right-0 z-10 ml-auto mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded bg-background text-muted-foreground opacity-0 transition-all hover:bg-muted hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary group-hover:opacity-100 group-focus-within:opacity-100"
                 onClick={() => copyLine(line, lineNumber)}
                 type="button"
-                title={`Copy line ${lineNumber}`}
-                aria-label={`Copy line ${lineNumber}`}
+                title={translateText(`Copy line ${lineNumber}`, locale)}
+                aria-label={translateText(`Copy line ${lineNumber}`, locale)}
               >
                 {isCopied ? <Check size={12} className="text-primary" /> : <Copy size={12} />}
               </button>

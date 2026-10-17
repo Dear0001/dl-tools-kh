@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { Copy, Download, Trash2, ArrowLeftRight, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { localizeControlContent, translateText, useLocale } from '@/i18n/LocaleProvider';
 
 interface PanelLayoutProps {
   inputPanel: React.ReactNode;
@@ -32,6 +33,7 @@ export default function PanelLayout({
   errorMessage,
   vertical = false,
 }: PanelLayoutProps) {
+  const { locale } = useLocale();
   const [copied, setCopied] = useState(false);
 
   const copyOutput = async () => {
@@ -39,11 +41,11 @@ export default function PanelLayout({
     try {
       await navigator.clipboard.writeText(outputText);
       setCopied(true);
-      toast.success('Copied to clipboard');
+      toast.success(translateText('Copied to clipboard', locale));
       setTimeout(() => setCopied(false), 2000);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Clipboard access was denied.';
-      toast.error(`Could not copy output: ${message}`);
+      toast.error(locale === 'kh' ? 'មិនអាចចម្លងលទ្ធផលបានទេ។ សូមអនុញ្ញាតការចូលប្រើក្ដារតម្បៀតខ្ទាស់។' : `Could not copy output: ${message}`);
     }
   };
 
@@ -56,7 +58,7 @@ export default function PanelLayout({
     a.download = 'output.txt';
     a.click();
     URL.revokeObjectURL(url);
-    toast.success('Downloaded output.txt');
+    toast.success(translateText('Copied output.txt', locale));
   };
 
   const containerClass = vertical
@@ -71,24 +73,24 @@ export default function PanelLayout({
         <div className="panel-header flex-shrink-0">
           <div className="flex items-center gap-2">
             <span className="status-dot-idle" />
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{inputLabel}</span>
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{translateText(inputLabel, locale)}</span>
           </div>
           <div className="flex items-center gap-1">
-            {inputActions}
+            {localizeControlContent(inputActions, locale)}
             {onSwap && (
-              <button className="btn-icon" onClick={onSwap} title="Swap input and output">
+              <button className="btn-icon" onClick={onSwap} title={translateText('Swap input and output', locale)} aria-label={translateText('Swap input and output', locale)}>
                 <ArrowLeftRight size={13} />
               </button>
             )}
             {onClear && (
-              <button className="btn-icon" onClick={onClear} title="Clear input">
+              <button className="btn-icon" onClick={onClear} title={translateText('Clear input', locale)} aria-label={translateText('Clear input', locale)}>
                 <Trash2 size={13} />
               </button>
             )}
           </div>
         </div>
         <div className="flex-1 overflow-hidden bg-input border-x border-b border-border rounded-b-lg">
-          {inputPanel}
+          {localizeControlContent(inputPanel, locale)}
         </div>
       </div>
 
@@ -102,17 +104,18 @@ export default function PanelLayout({
             {outputStatus === 'success' && <span className="status-dot-success" />}
             {outputStatus === 'error' && <span className="status-dot-error" />}
             {outputStatus === 'idle' && <span className="status-dot-idle" />}
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{outputLabel}</span>
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{translateText(outputLabel, locale)}</span>
             {errorMessage && (
               <span className="text-xs text-red-400 font-mono truncate max-w-xs">{errorMessage}</span>
             )}
           </div>
           <div className="flex items-center gap-1">
-            {outputActions}
+            {localizeControlContent(outputActions, locale)}
             <button
               className={`btn-icon ${copied ? 'text-primary' : ''}`}
               onClick={copyOutput}
-              title="Copy output"
+              title={translateText('Copy output', locale)}
+              aria-label={translateText('Copy output', locale)}
               disabled={!outputText}
             >
               {copied ? <CheckCircle2 size={13} /> : <Copy size={13} />}
@@ -120,7 +123,8 @@ export default function PanelLayout({
             <button
               className="btn-icon"
               onClick={downloadOutput}
-              title="Download output"
+              title={translateText('Download output', locale)}
+              aria-label={translateText('Download output', locale)}
               disabled={!outputText}
             >
               <Download size={13} />
@@ -128,7 +132,7 @@ export default function PanelLayout({
           </div>
         </div>
         <div className="flex-1 overflow-hidden bg-background border-x border-b border-border rounded-b-lg">
-          {outputPanel}
+          {localizeControlContent(outputPanel, locale)}
         </div>
       </div>
     </div>

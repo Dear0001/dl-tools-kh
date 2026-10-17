@@ -5,6 +5,7 @@ import { BookmarkPlus, Check, Copy, Database, LogIn, Trash2, X } from 'lucide-re
 import { signIn, useSession } from 'next-auth/react';
 import { toast } from 'sonner';
 import type { Tool } from '@/data/tools';
+import { getToolName, translateText, useLocale } from '@/i18n/LocaleProvider';
 
 interface SavedItem {
   id: string;
@@ -16,6 +17,7 @@ interface SavedItem {
 }
 
 export default function SavedToolDataDialog({ tool }: { tool: Tool }) {
+  const { locale } = useLocale();
   const { status } = useSession();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
@@ -67,7 +69,7 @@ export default function SavedToolDataDialog({ tool }: { tool: Tool }) {
       setItems((current) => [item, ...current]);
       setTitle('');
       setContent('');
-      toast.success('Data saved to your account');
+      toast.success(locale === 'kh' ? 'បានរក្សាទុកទិន្នន័យក្នុងគណនីរបស់អ្នក' : 'Data saved to your account');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Could not save this data.');
     } finally {
@@ -115,7 +117,7 @@ export default function SavedToolDataDialog({ tool }: { tool: Tool }) {
         aria-haspopup="dialog"
       >
         <Database size={14} />
-        Saved data
+        {translateText('Saved data', locale)}
       </button>
       {open && (
         <div
@@ -133,11 +135,11 @@ export default function SavedToolDataDialog({ tool }: { tool: Tool }) {
             <header className="flex items-center justify-between border-b border-border px-5 py-4">
               <div>
                 <h2 id="saved-tool-data-title" className="text-base font-semibold text-foreground">
-                  Saved data
+                  {translateText('Saved data', locale)}
                 </h2>
-                <p className="mt-1 text-xs text-muted-foreground">{tool.name} · Synced to your account</p>
+                <p className="mt-1 text-xs text-muted-foreground">{getToolName(tool.id, tool.name, locale)} · {translateText('Synced to your account', locale)}</p>
               </div>
-              <button type="button" className="btn-icon" onClick={() => setOpen(false)} aria-label="Close saved data">
+              <button type="button" className="btn-icon" onClick={() => setOpen(false)} aria-label={locale === 'kh' ? 'បិទទិន្នន័យដែលបានរក្សាទុក' : 'Close saved data'}>
                 <X size={15} />
               </button>
             </header>
@@ -146,29 +148,29 @@ export default function SavedToolDataDialog({ tool }: { tool: Tool }) {
               <div className="min-h-0 flex-1 space-y-5 overflow-auto p-5">
                 <div className="space-y-3 rounded-xl border border-border bg-background/50 p-4">
                   <label className="block space-y-1.5 text-xs font-medium text-muted-foreground">
-                    Name
+                    {translateText('Name', locale)}
                     <input
                       value={title}
                       onChange={(event) => setTitle(event.target.value)}
                       maxLength={100}
                       className="input-code w-full"
-                      placeholder="e.g. Production config"
+                      placeholder={translateText('e.g. Production config', locale)}
                     />
                   </label>
                   <label className="block space-y-1.5 text-xs font-medium text-muted-foreground">
-                    Text or tool data
+                    {translateText('Text or tool data', locale)}
                     <textarea
                       value={content}
                       onChange={(event) => setContent(event.target.value)}
                       maxLength={1_000_000}
                       rows={5}
                       className="input-code w-full resize-y"
-                      placeholder="Paste the result or data you want to keep…"
+                      placeholder={translateText('Paste the result or data you want to keep…', locale)}
                     />
                   </label>
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="text-[11px] text-muted-foreground">
-                      Stored as text in the database, not automatically collected. Don’t save secrets.
+                      {translateText('Stored as text in the database, not automatically collected. Don’t save secrets.', locale)}
                     </p>
                     <button
                       type="button"
@@ -177,19 +179,19 @@ export default function SavedToolDataDialog({ tool }: { tool: Tool }) {
                       disabled={saving || !title.trim() || !content.trim()}
                     >
                       <BookmarkPlus size={13} />
-                      {saving ? 'Saving…' : 'Save data'}
+                      {translateText(saving ? 'Saving…' : 'Save data', locale)}
                     </button>
                   </div>
                 </div>
 
                 <section aria-label="Previously saved data" className="space-y-2">
                   <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Previously saved
+                    {translateText('Previously saved', locale)}
                   </h3>
                   {loading ? (
-                    <p className="py-4 text-sm text-muted-foreground">Loading saved data…</p>
+                    <p className="py-4 text-sm text-muted-foreground">{translateText('Loading saved data…', locale)}</p>
                   ) : items.length === 0 ? (
-                    <p className="py-4 text-sm text-muted-foreground">Nothing saved for this tool yet.</p>
+                    <p className="py-4 text-sm text-muted-foreground">{translateText('Nothing saved for this tool yet.', locale)}</p>
                   ) : (
                     items.map((item) => (
                       <article key={item.id} className="rounded-xl border border-border bg-background/50 p-3">
@@ -202,7 +204,7 @@ export default function SavedToolDataDialog({ tool }: { tool: Tool }) {
                                 : item.content)}
                             </p>
                             <time className="mt-2 block text-[10px] text-muted-foreground">
-                              Updated {new Date(item.updatedAt).toLocaleString()}
+                              {translateText('Updated', locale)} {new Date(item.updatedAt).toLocaleString(locale === 'kh' ? 'km-KH' : 'en-US')}
                             </time>
                           </div>
                           <div className="flex shrink-0 items-center gap-1">
@@ -210,8 +212,8 @@ export default function SavedToolDataDialog({ tool }: { tool: Tool }) {
                               type="button"
                               className="btn-icon h-8 w-8"
                               onClick={() => void copy(item)}
-                              aria-label={`Copy ${item.title}`}
-                              title="Copy saved data"
+                              aria-label={`${locale === 'kh' ? 'ចម្លង' : 'Copy'} ${item.title}`}
+                              title={translateText('Copy saved data', locale)}
                             >
                               {copiedId === item.id ? <Check size={13} /> : <Copy size={13} />}
                             </button>
@@ -219,8 +221,8 @@ export default function SavedToolDataDialog({ tool }: { tool: Tool }) {
                               type="button"
                               className="btn-icon h-8 w-8"
                               onClick={() => void remove(item.id)}
-                              aria-label={`Delete ${item.title}`}
-                              title="Delete saved data"
+                              aria-label={`${locale === 'kh' ? 'លុប' : 'Delete'} ${item.title}`}
+                              title={translateText('Delete saved data', locale)}
                             >
                               <Trash2 size={13} />
                             </button>
@@ -234,11 +236,11 @@ export default function SavedToolDataDialog({ tool }: { tool: Tool }) {
             ) : (
               <div className="flex flex-col items-center gap-3 p-8 text-center">
                 <p className="max-w-sm text-sm text-muted-foreground">
-                  Sign in with Google to save and sync data for this tool across devices.
+                  {translateText('Sign in with Google to save and sync data for this tool across devices.', locale)}
                 </p>
                 <button type="button" className="btn-primary text-xs" onClick={() => void signIn('google')}>
                   <LogIn size={14} />
-                  Sign in with Google
+                  {locale === 'kh' ? 'ចូលដោយប្រើ Google' : 'Sign in with Google'}
                 </button>
               </div>
             )}

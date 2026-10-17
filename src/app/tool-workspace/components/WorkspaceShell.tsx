@@ -8,6 +8,8 @@ import { toast } from 'sonner';
 import { CATEGORY_COLORS } from '@/data/tools';
 import { trackToolOpen } from '@/components/GoogleAnalytics';
 import SavedToolDataDialog from './SavedToolDataDialog';
+import DocumentConverterPanel from './tools/DocumentConverterPanel';
+import { getToolName, useLocale } from '@/i18n/LocaleProvider';
 
 // Tool-specific panels
 import JsonFormatterPanel from './tools/JsonFormatterPanel';
@@ -60,9 +62,11 @@ const PANEL_MAP: Record<string, React.ComponentType<{ tool: Tool }>> = {
   'tool-khqr-builder': KhqrBuilderPanel,
   'tool-khqr-validator': KhqrValidatorPanel,
   'tool-qr-reader': QrReaderPanel,
+  'tool-pdf-word-converter': DocumentConverterPanel,
 };
 
 export default function WorkspaceShell({ tool }: { tool: Tool }) {
+  const { locale, t } = useLocale();
   const { data: session, status: authStatus } = useSession();
   const trackedToolId = useRef('');
   const colors = CATEGORY_COLORS[tool.category];
@@ -110,7 +114,7 @@ export default function WorkspaceShell({ tool }: { tool: Tool }) {
       {/* Workspace header */}
       <div className="flex-shrink-0 flex items-center justify-between px-6 lg:px-8 xl:px-10 2xl:px-16 py-3 border-b border-border bg-secondary/50">
         <div className="flex items-center gap-3">
-          <Link href="/" className="btn-icon" aria-label="Back to Tool Hub">
+          <Link href="/" className="btn-icon" aria-label={t('backToHub')}>
             <ArrowLeft size={16} />
           </Link>
           <div className="w-px h-5 bg-border" />
@@ -118,14 +122,16 @@ export default function WorkspaceShell({ tool }: { tool: Tool }) {
             <span className={`text-xs font-bold font-mono ${colors.text}`}>{tool.name.charAt(0)}</span>
           </div>
           <div>
-            <h1 className="text-sm font-semibold text-foreground leading-none">{tool.name}</h1>
-            <p className="text-xs text-muted-foreground mt-0.5 hidden sm:block">{tool.description}</p>
+            <h1 className="text-sm font-semibold text-foreground leading-none">{getToolName(tool.id, tool.name, locale)}</h1>
+            <p className="text-xs text-muted-foreground mt-0.5 hidden sm:block">
+              {tool.id === 'tool-pdf-word-converter' ? t('converterSubtitle') : tool.description}
+            </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
           <span className={`tool-category-badge hidden sm:inline-flex ${colors.bg} ${colors.text} border ${colors.border}`}>
-            {tool.category}
+            {tool.category === 'documents' ? t('documentTools') : tool.category}
           </span>
           <SavedToolDataDialog tool={tool} />
         </div>

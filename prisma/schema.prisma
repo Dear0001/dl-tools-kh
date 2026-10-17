@@ -85,3 +85,33 @@ model SavedToolData {
 
   @@index([userId, toolId, updatedAt])
 }
+
+enum DocumentConversionStatus {
+  WAITING
+  PROCESSING
+  FINISHED
+  ERROR
+}
+
+model DocumentConversionJob {
+  id              String                    @id @default(cuid())
+  accessTokenHash String                    @unique @db.Char(64)
+  providerJobId   String                    @unique
+  mode            String                    @db.VarChar(20)
+  filename        String                    @db.VarChar(255)
+  outputFilename  String?                   @db.VarChar(255)
+  status          DocumentConversionStatus  @default(WAITING)
+  expiresAt       DateTime
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+
+  @@index([expiresAt])
+}
+
+model DocumentConversionRateLimit {
+  ipHash          String   @id @db.Char(64)
+  windowStartedAt DateTime
+  attempts        Int      @default(0)
+
+  @@index([windowStartedAt])
+}

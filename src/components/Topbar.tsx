@@ -4,9 +4,11 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import AppLogo from '@/components/ui/AppLogo';
-import { Menu, X, Zap, HandCoins, LogIn, LogOut } from 'lucide-react';
+import { Menu, X, Zap, HandCoins, LogIn, LogOut, ChevronDown } from 'lucide-react';
 import { signIn, signOut, useSession } from 'next-auth/react';
 import { toast } from 'sonner';
+import { CATEGORIES, TOOLS } from '@/data/tools';
+import { getToolName, useLocale } from '@/i18n/LocaleProvider';
 
 // Inline GitHub SVG since brand icons were removed in lucide-react v1
 function GithubIcon({ size = 16 }: { size?: number }) {
@@ -43,7 +45,7 @@ const i18n = {
     free: 'ឥតគិតថ្លៃ',
     support: 'ជួយគាំទ្រ',
     supportTitle: 'អរគុណចំពោះការជួយគាំទ្រ',
-    supportMessage: 'ប្រសិនបើអ្នកចង់គាំទ្រโปรเจកនេះដោយការបរិច្ចាគតិចតួច សូមស្កែន QR ខាងក្រោម។',
+    supportMessage: 'ប្រសិនបើអ្នកចង់ជួយគាំទ្រគម្រោងនេះដោយការបរិច្ចាគតិចតួច សូមស្កេន QR ខាងក្រោម។',
     supportCta: 'ការបរិច្ចាគណាមួយក៏ទទួលបានអំណរគុណ',
   },
 };
@@ -51,26 +53,18 @@ const i18n = {
 export default function Topbar() {
   const pathname = usePathname();
   const { data: session, status: authStatus } = useSession();
+  const { locale, setLocale, t } = useLocale();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [theme, setTheme] = useState<'dark' | 'light'>('light');
-  const [locale, setLocale] = useState<'en' | 'kh'>('kh');
-  const [userSelectedTheme, setUserSelectedTheme] = useState(false);
-  const [userSelectedLocale, setUserSelectedLocale] = useState(false);
   const [supportOpen, setSupportOpen] = useState(false);
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [preferencesLoadedFor, setPreferencesLoadedFor] = useState<string | null>(null);
 
   useEffect(() => {
     try {
       const storedTheme = window.localStorage.getItem('devtoolkit-theme');
-      const storedLocale = window.localStorage.getItem('devtoolkit-locale');
-
       if (storedTheme === 'dark' || storedTheme === 'light') {
         setTheme(storedTheme);
-        setUserSelectedTheme(true);
-      }
-      if (storedLocale === 'en' || storedLocale === 'kh') {
-        setLocale(storedLocale);
-        setUserSelectedLocale(true);
       }
     } catch {
       // ignore localStorage errors in unsupported environments
@@ -94,10 +88,7 @@ export default function Topbar() {
           setTheme(preferences.theme);
           window.localStorage.setItem('devtoolkit-theme', preferences.theme);
         }
-        if (preferences.locale === 'en' || preferences.locale === 'kh') {
-          setLocale(preferences.locale);
-          window.localStorage.setItem('devtoolkit-locale', preferences.locale);
-        }
+        if (preferences.locale === 'en' || preferences.locale === 'kh') setLocale(preferences.locale);
         setPreferencesLoadedFor(userId);
       })
       .catch((error: unknown) => {
@@ -113,9 +104,19 @@ export default function Topbar() {
 
   const texts = i18n[locale];
   const navLinks = [
-    { label: texts.toolHub, href: '/', key: 'nav-hub' },
-    { label: texts.workspace, href: '/tool-workspace', key: 'nav-workspace' },
+    { label: t('toolHub'), href: '/', key: 'nav-hub', menu: 'hub' },
+    { label: t('workspace'), href: '/tool-workspace', key: 'nav-workspace', menu: 'workspace' },
   ];
+  const categoryNames: Record<string, string> = {
+    formatters: locale === 'kh' ? 'កម្មវិធីរៀបចំទ្រង់ទ្រាយ' : 'Formatters',
+    diff: locale === 'kh' ? 'ប្រៀបធៀប' : 'Diff & Compare',
+    qr: locale === 'kh' ? 'QR និង KHQR' : 'QR & KHQR',
+    image: locale === 'kh' ? 'រូបភាព និង Base64' : 'Image & Base64',
+    utilities: locale === 'kh' ? 'ឧបករណ៍ប្រើប្រាស់' : 'Utilities',
+    generators: locale === 'kh' ? 'កម្មវិធីបង្កើត' : 'Generators',
+    documents: locale === 'kh' ? 'ឯកសារ' : 'Documents',
+  };
+  const workspaceTools = TOOLS.filter((tool) => tool.popular || tool.id === 'tool-pdf-word-converter');
 
   useEffect(() => {
     const root = document.documentElement;
@@ -127,10 +128,6 @@ export default function Topbar() {
       root.classList.remove('light');
     }
   }, [theme]);
-
-  useEffect(() => {
-    document.documentElement.lang = locale === 'kh' ? 'km' : 'en';
-  }, [locale]);
 
   const savePreference = async (preference: { theme?: 'light' | 'dark'; locale?: 'en' | 'kh' }) => {
     if (authStatus !== 'authenticated' || !session?.user?.id || preferencesLoadedFor !== session.user.id) return;
@@ -154,7 +151,6 @@ export default function Topbar() {
     setTheme(next);
     try {
       window.localStorage.setItem('devtoolkit-theme', next);
-      setUserSelectedTheme(true);
     } catch {
       toast.error('Could not save the theme on this device.');
     }
@@ -163,12 +159,6 @@ export default function Topbar() {
 
   const handleLocaleChange = (value: 'en' | 'kh') => {
     setLocale(value);
-    try {
-      window.localStorage.setItem('devtoolkit-locale', value);
-      setUserSelectedLocale(true);
-    } catch {
-      toast.error('Could not save the language on this device.');
-    }
     void savePreference({ locale: value });
   };
 
@@ -194,20 +184,80 @@ export default function Topbar() {
             {/* Desktop nav */}
             <nav className="hidden md:flex items-center gap-1">
               {navLinks?.map((link) => {
-                const isActive = pathname === link?.href || (link?.href !== '/' && pathname?.startsWith(link?.href));
+                        const isActive = pathname === link.href || (link.href !== '/' && pathname?.startsWith(link.href));
                 return (
-                  <Link
-                    key={link?.key}
-                    href={link?.href}
-                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-150 ${
-                      isActive
-                        ? 'bg-primary/10 text-primary' :'text-muted-foreground hover:text-foreground hover:bg-muted'
-                    }`}
-                  >
-                    {link?.label}
-                  </Link>
-                );
-              })}
+                          <div
+                            key={link.key}
+                            className="group relative"
+                            onMouseEnter={() => setOpenMenu(link.menu)}
+                            onMouseLeave={() => setOpenMenu(null)}
+                            onFocus={() => setOpenMenu(link.menu)}
+                          >
+                            <div className={`flex items-center rounded-md text-sm font-medium transition-colors ${
+                              isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                            }`}>
+                              <Link href={link.href} className="px-3 py-1.5">{link.label}</Link>
+                              <button
+                                type="button"
+                                className="mr-1 rounded p-1 hover:bg-muted"
+                                aria-label={`${link.label} ${locale === 'kh' ? 'ឧបករណ៍' : 'tools'}`}
+                                aria-expanded={openMenu === link.menu}
+                                aria-haspopup="true"
+                                onClick={() => setOpenMenu((current) => current === link.menu ? null : link.menu)}
+                              >
+                                <ChevronDown size={13} aria-hidden="true" />
+                              </button>
+                            </div>
+                            <div className={`invisible absolute left-1/2 top-full z-[60] w-[min(92vw,46rem)] -translate-x-1/2 pt-2 opacity-0 transition duration-150 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 ${
+                              openMenu === link.menu ? 'visible opacity-100' : ''
+                            }`}>
+                              <div className="max-h-[min(70vh,34rem)] overflow-y-auto rounded-xl border border-border bg-card p-4 shadow-2xl">
+                                <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
+                                  {link.menu === 'hub' ? t('allTools') : t('popularTools')}
+                                </p>
+                                {link.menu === 'hub' ? (
+                                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                                    {CATEGORIES.map((category) => (
+                                      <section key={category.id}>
+                                        <h3 className="mb-1.5 text-xs font-semibold text-muted-foreground">
+                                          {categoryNames[category.id] ?? category.label}
+                                        </h3>
+                                        <ul className="space-y-0.5">
+                                          {TOOLS.filter((tool) => tool.category === category.id).map((tool) => (
+                                            <li key={tool.id}>
+                                              <Link
+                                                href={`/tool-workspace?tool=${encodeURIComponent(tool.id)}`}
+                                                onClick={() => setOpenMenu(null)}
+                                                className="block rounded-md px-2 py-1.5 text-xs text-foreground hover:bg-muted hover:text-primary"
+                                              >
+                                                {getToolName(tool.id, tool.name, locale)}
+                                              </Link>
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      </section>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <ul className="grid gap-1 sm:grid-cols-2">
+                                    {workspaceTools.map((tool) => (
+                                      <li key={tool.id}>
+                                        <Link
+                                          href={`/tool-workspace?tool=${encodeURIComponent(tool.id)}`}
+                                          onClick={() => setOpenMenu(null)}
+                                          className="block rounded-md px-3 py-2 text-sm text-foreground hover:bg-muted hover:text-primary"
+                                        >
+                                          {getToolName(tool.id, tool.name, locale)}
+                                        </Link>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
             </nav>
 
             {/* Right actions */}
@@ -232,7 +282,7 @@ export default function Topbar() {
                     onClick={() => void signOut()}
                   >
                     <LogOut size={14} />
-                    Sign out
+                    {t('signOut')}
                   </button>
                 </>
               ) : (
@@ -243,7 +293,7 @@ export default function Topbar() {
                   disabled={authStatus === 'loading'}
                 >
                   <LogIn size={14} />
-                  Sign in
+                  {t('signIn')}
                 </button>
               )}
               <button
@@ -280,7 +330,7 @@ export default function Topbar() {
                 type="button"
                 className="btn-icon md:hidden"
                 onClick={() => setMobileOpen(!mobileOpen)}
-                aria-label="Toggle menu"
+                aria-label={t('toggleMenu')}
                 aria-expanded={mobileOpen}
                 aria-controls="mobile-navigation"
               >
@@ -297,18 +347,18 @@ export default function Topbar() {
             <div className="relative">
               <div className="flex items-center justify-between gap-2 border-b px-2 py-2 bg-gradient-to-r from-red-600 to-red-500 text-white">
                 <div>
-                  <h3 className="text-base font-semibold uppercase tracking-[0.2em]">Support</h3>
+                  <h3 className="text-base font-semibold uppercase tracking-[0.2em]">{texts.support}</h3>
                 </div>
-                <button type="button" className="btn-icon text-white transition-transform duration-200 hover:scale-110" onClick={() => setSupportOpen(false)} aria-label="Close support modal">
+                <button type="button" className="btn-icon text-white transition-transform duration-200 hover:scale-110" onClick={() => setSupportOpen(false)} aria-label={locale === 'kh' ? 'បិទ' : 'Close support modal'}>
                   <X size={16} />
                 </button>
               </div>
               <div className="px-5 py-4">
                 <div className="rounded-[32px] border border-border bg-white p-5 shadow-card-hover transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_20px_70px_rgba(0,212,170,0.08)]">
                   <div className="text-center">
-                    <p className="text-base font-semibold text-foreground">Thank you for supporting us!</p>
+                    <p className="text-base font-semibold text-foreground">{texts.supportTitle}</p>
                     <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                      If you want to send a small thank-you contribution, please scan the QR code below.
+                      {texts.supportMessage}
                     </p>
                   </div>
                   <div className="relative mx-auto mt-6 flex w-full max-w-[280px] justify-center">
@@ -325,7 +375,7 @@ export default function Topbar() {
                     </div>
                   </div>
                 </div>
-                <p className="mt-4 text-sm font-medium text-foreground text-center">Any amount is appreciated.</p>
+                <p className="mt-4 text-sm font-medium text-foreground text-center">{texts.supportCta}</p>
               </div>
             </div>
           </div>
@@ -339,17 +389,53 @@ export default function Topbar() {
             {navLinks?.map((link) => {
               const isActive = pathname === link?.href;
               return (
-                <Link
-                  key={link?.key}
-                  href={link?.href}
-                  onClick={() => setMobileOpen(false)}
-                  className={`px-4 py-2.5 rounded-md text-sm font-medium transition-all duration-150 ${
-                    isActive
-                      ? 'bg-primary/10 text-primary' :'text-muted-foreground hover:text-foreground hover:bg-muted'
-                  }`}
-                >
-                  {link?.label}
-                </Link>
+                <section key={link.key}>
+                  <div className="flex items-center gap-1">
+                    <Link
+                      href={link.href}
+                      onClick={() => setMobileOpen(false)}
+                      className={`flex-1 rounded-md px-4 py-2.5 text-sm font-medium transition-all duration-150 ${
+                        isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                      }`}
+                    >
+                      {link.label}
+                    </Link>
+                    <button
+                      type="button"
+                      className="btn-icon h-10 w-10"
+                      aria-label={`${link.label} ${locale === 'kh' ? 'ឧបករណ៍' : 'tools'}`}
+                      aria-expanded={openMenu === link.menu}
+                      onClick={() => setOpenMenu((current) => current === link.menu ? null : link.menu)}
+                    >
+                      <ChevronDown size={15} className={`transition-transform ${openMenu === link.menu ? 'rotate-180' : ''}`} />
+                    </button>
+                  </div>
+                  {openMenu === link.menu && (
+                    <ul className="mt-1 grid grid-cols-2 gap-1 px-2 pb-2">
+                      {(link.menu === 'hub' ? TOOLS.slice(0, 8) : workspaceTools).map((tool) => (
+                        <li key={tool.id}>
+                          <Link
+                            href={`/tool-workspace?tool=${encodeURIComponent(tool.id)}`}
+                            onClick={() => {
+                              setMobileOpen(false);
+                              setOpenMenu(null);
+                            }}
+                            className="block rounded-md px-3 py-2 text-xs text-muted-foreground hover:bg-muted hover:text-primary"
+                          >
+                            {getToolName(tool.id, tool.name, locale)}
+                          </Link>
+                        </li>
+                      ))}
+                      {link.menu === 'hub' && (
+                        <li className="col-span-2">
+                          <Link href="/" onClick={() => setMobileOpen(false)} className="block rounded-md px-3 py-2 text-xs font-medium text-primary">
+                            {t('allTools')}
+                          </Link>
+                        </li>
+                      )}
+                    </ul>
+                  )}
+                </section>
               );
             })}
             <div className="flex flex-col gap-3 pt-2 border-t border-border">
@@ -367,7 +453,7 @@ export default function Topbar() {
                     }}
                   >
                     <LogOut size={14} />
-                    Sign out
+                    {t('signOut')}
                   </button>
                 </div>
               ) : (
@@ -381,7 +467,7 @@ export default function Topbar() {
                   disabled={authStatus === 'loading'}
                 >
                   <LogIn size={14} />
-                  Sign in with Google
+                  {t('signInGoogle')}
                 </button>
               )}
               <button

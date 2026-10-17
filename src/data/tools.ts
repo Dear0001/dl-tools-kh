@@ -1,6 +1,6 @@
 export type ToolCategory =
   | 'formatters'
-  | 'diff' |'qr' |'image' |'utilities' |'generators';
+  | 'diff' |'qr' |'image' |'utilities' |'generators' | 'documents';
 
 export interface Tool {
   id: string;
@@ -20,6 +20,7 @@ export const CATEGORIES: { id: ToolCategory; label: string; icon: string; color:
   { id: 'image', label: 'Image & Base64', icon: 'ImageIcon', color: 'text-pink-400' },
   { id: 'utilities', label: 'Utilities', icon: 'Wrench', color: 'text-violet-400' },
   { id: 'generators', label: 'Generators', icon: 'Sparkles', color: 'text-orange-400' },
+  { id: 'documents', label: 'PDF & Word', icon: 'Files', color: 'text-rose-400' },
 ];
 
 export const TOOLS: Tool[] = [
@@ -287,6 +288,16 @@ export const TOOLS: Tool[] = [
     icon: 'TableProperties',
     popular: true,
   },
+  {
+    id: 'tool-pdf-word-converter',
+    name: 'PDF ↔ Word Converter',
+    description: 'Convert PDF and DOCX files with English and Khmer OCR for scanned documents.',
+    category: 'documents',
+    tags: ['pdf', 'word', 'docx', 'convert', 'khmer', 'ocr'],
+    icon: 'Files',
+    popular: true,
+    isNew: true,
+  },
 ];
 
 export const CATEGORY_COLORS: Record<ToolCategory, { bg: string; text: string; border: string }> = {
@@ -296,4 +307,5 @@ export const CATEGORY_COLORS: Record<ToolCategory, { bg: string; text: string; b
   image: { bg: 'bg-pink-500/10', text: 'text-pink-400', border: 'border-pink-500/20' },
   utilities: { bg: 'bg-violet-500/10', text: 'text-violet-400', border: 'border-violet-500/20' },
   generators: { bg: 'bg-orange-500/10', text: 'text-orange-400', border: 'border-orange-500/20' },
+  documents: { bg: 'bg-rose-500/10', text: 'text-rose-400', border: 'border-rose-500/20' },
 };

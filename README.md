@@ -38,6 +38,17 @@ For production, configure the same environment variables in the hosting provider
 
 The account UI lets signed-in users save and delete up to 1 MB of text/data per item for the current tool. API access is scoped to the signed-in account, but saved content and OAuth adapter records are stored as ordinary database text; do not save passwords, access tokens, or other secrets. Protect database access and backups accordingly.
 
+### PDF and Word conversion
+
+The Next.js API creates and tracks conversion jobs using Prisma, then delegates file conversion to CloudConvert. The browser uploads document bytes directly to CloudConvert's temporary upload form, so large files do not pass through Vercel functions. Prisma stores only the conversion mode, filenames, job status, an expiring job reference, and hashed rate-limit/access tokens; it never stores document bytes.
+
+1. Create a CloudConvert account and an API key with the permissions required to create/read conversion jobs. Keep the key private.
+2. Add `CLOUDCONVERT_API_KEY` to the Vercel project's Production environment variables. Do not prefix it with `NEXT_PUBLIC_`.
+3. Apply the Prisma migration using `npm run db:deploy` against the production database, then redeploy the Vercel app.
+4. Test PDF→Word and Word→PDF with non-sensitive sample documents. The tool accepts files up to 25 MB and limits each client IP to five new jobs per ten minutes.
+
+CloudConvert processes the uploaded documents under its own privacy, retention, and pricing terms. The app does not store document bytes; temporary job metadata expires after 24 hours. Complex layouts may change during conversion. Scanned PDF OCR, particularly Khmer OCR, depends on CloudConvert's supported conversion behavior and is not guaranteed by this integration; proofread converted documents.
+
 ## Google Analytics
 
 After a visitor allows analytics in the privacy prompt, the app sends GA4 page views and a `tool_open` event (tool ID, name, and category) when a visitor opens a tool. Visitors can reject or later change their choice from **Privacy settings**. Analytics runs only in production and only when a valid Measurement ID is set; local development is not tracked.

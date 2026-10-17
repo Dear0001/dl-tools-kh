@@ -1,8 +1,9 @@
 'use client';
 import React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Braces, GitCompare, QrCode, ImageIcon, Wrench, Sparkles, LayoutGrid } from 'lucide-react';
+import { Braces, GitCompare, QrCode, ImageIcon, Wrench, Sparkles, LayoutGrid, Files } from 'lucide-react';
 import { CATEGORIES, TOOLS, ToolCategory } from '../../data/tools';
+import { getCategoryName, useLocale } from '@/i18n/LocaleProvider';
 
 const ICON_MAP: Record<string, React.ReactNode> = {
   FileCode2: <Braces size={14} />,
@@ -11,9 +12,11 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   ImageIcon: <ImageIcon size={14} />,
   Wrench: <Wrench size={14} />,
   Sparkles: <Sparkles size={14} />,
+  Files: <Files size={14} />,
 };
 
 export default function CategoryFilters() {
+  const { locale, t } = useLocale();
   const router = useRouter();
   const searchParams = useSearchParams();
   const active = (searchParams.get('cat') || 'all') as ToolCategory | 'all';
@@ -29,7 +32,7 @@ export default function CategoryFilters() {
   };
 
   return (
-    <div role="group" aria-label="Filter tools by collection" className="mb-5 flex flex-wrap gap-2">
+    <div role="group" aria-label={t('browseTools')} className="mb-5 flex flex-wrap gap-2">
       <button
         onClick={() => setCategory('all')}
         aria-pressed={active === 'all'}
@@ -38,7 +41,7 @@ export default function CategoryFilters() {
         }`}
       >
         <LayoutGrid size={13} />
-        All Tools
+        {t('allTools')}
         <span className="ml-0.5 tabular-nums text-xs opacity-60">{TOOLS.length}</span>
       </button>
 
@@ -57,7 +60,7 @@ export default function CategoryFilters() {
             }`}
           >
             <span className={isActive ? cat.color : ''}>{ICON_MAP[cat.icon]}</span>
-            {cat.label}
+            {getCategoryName(cat.id, cat.label, locale)}
             <span className="ml-0.5 tabular-nums text-xs opacity-60">{count}</span>
           </button>
         );

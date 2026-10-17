@@ -3,8 +3,10 @@ import React, { Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import ToolCard from './ToolCard';
 import { TOOLS, ToolCategory, CATEGORIES } from '@/data/tools';
+import { getCategoryName, useLocale } from '@/i18n/LocaleProvider';
 
 function ToolGridInner() {
+  const { locale, t } = useLocale();
   const router = useRouter();
   const searchParams = useSearchParams();
   const cat = searchParams.get('cat') as ToolCategory | null;
@@ -14,10 +16,10 @@ function ToolGridInner() {
   if (filtered.length === 0) {
     return (
       <div className="flex flex-col items-start rounded-xl border border-dashed border-border bg-card/50 px-5 py-8">
-        <h3 className="text-base font-semibold text-foreground">No tools found in this collection</h3>
-        <p className="mt-1 text-sm text-muted-foreground">Choose another collection or view all tools.</p>
+        <h3 className="text-base font-semibold text-foreground">{t('noTools')}</h3>
+        <p className="mt-1 text-sm text-muted-foreground">{t('chooseCollection')}</p>
         <button type="button" onClick={() => router.push('/')} className="btn-primary mt-4">
-          Show all tools
+          {t('showAllTools')}
         </button>
       </div>
     );
@@ -26,8 +28,9 @@ function ToolGridInner() {
   return (
     <>
       <p className="mb-3 text-xs text-muted-foreground" aria-live="polite">
-        Showing <span className="font-medium tabular-nums text-foreground">{filtered.length}</span>
-        {category ? ` ${category.label.toLowerCase()} tools` : ' tools'}
+        {locale === 'en' ? 'Showing ' : ''}
+        <span className="font-medium tabular-nums text-foreground">{filtered.length}</span>
+        {' '}{category ? getCategoryName(category.id, category.label, locale).toLowerCase() : ''} {t('tools')}
       </p>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {filtered.map((tool) => (

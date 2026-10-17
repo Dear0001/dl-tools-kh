@@ -1,5 +1,6 @@
 'use client';
 import React, { useRef } from 'react';
+import { translateText, useLocale } from '@/i18n/LocaleProvider';
 
 interface CodeEditorProps {
   value: string;
@@ -18,6 +19,7 @@ export default function CodeEditor({
   minHeight = '200px',
   className = '',
 }: CodeEditorProps) {
+  const { locale } = useLocale();
   const ref = useRef<HTMLTextAreaElement>(null);
 
   const handleTab = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -38,7 +40,7 @@ export default function CodeEditor({
       value={value}
       onChange={(e) => onChange(e.target.value)}
       onKeyDown={handleTab}
-      placeholder={placeholder}
+      placeholder={translateText(placeholder, locale)}
       readOnly={readOnly}
       className={`input-code w-full h-full resize-none border-0 rounded-none bg-transparent focus:ring-0 focus:border-0 focus:shadow-none ${className}`}
       style={{ minHeight }}

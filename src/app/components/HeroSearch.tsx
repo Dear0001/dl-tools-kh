@@ -3,8 +3,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { Search } from 'lucide-react';
 import { TOOLS } from '@/data/tools';
+import { getToolDescription, getToolName, useLocale } from '@/i18n/LocaleProvider';
 
 export default function HeroSearch() {
+  const { locale, t } = useLocale();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<typeof TOOLS>([]);
   const [open, setOpen] = useState(false);
@@ -35,12 +37,14 @@ export default function HeroSearch() {
     const filtered = TOOLS.filter(
       (t) =>
         t.name.toLowerCase().includes(q) ||
+        getToolName(t.id, t.name, locale).toLowerCase().includes(q) ||
         t.description.toLowerCase().includes(q) ||
+        getToolDescription(t.id, t.description, locale).toLowerCase().includes(q) ||
         t.tags.some((tag) => tag.includes(q))
     ).slice(0, 6);
     setResults(filtered);
     setOpen(true);
-  }, [query]);
+  }, [locale, query]);
 
   const handleSelect = () => {
     setQuery('');
@@ -63,11 +67,11 @@ export default function HeroSearch() {
           ref={inputRef}
           type="text"
           className="search-input"
-          placeholder="Search tools by name or task…"
+          placeholder={t('searchPlaceholder')}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => query && setOpen(true)}
-          aria-label="Search developer tools"
+          aria-label={t('searchAria')}
           aria-expanded={open}
           aria-controls="tool-search-results"
         />
@@ -92,18 +96,18 @@ export default function HeroSearch() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-foreground">{tool.name}</span>
+                    <span className="text-sm font-medium text-foreground">{getToolName(tool.id, tool.name, locale)}</span>
                     {tool.isNew && (
-                      <span className="tool-category-badge border border-primary/20 bg-primary/10 text-primary">New</span>
+                      <span className="tool-category-badge border border-primary/20 bg-primary/10 text-primary">{t('new')}</span>
                     )}
                   </div>
-                  <p className="mt-0.5 truncate text-xs text-muted-foreground">{tool.description}</p>
+                  <p className="mt-0.5 truncate text-xs text-muted-foreground">{getToolDescription(tool.id, tool.description, locale)}</p>
                 </div>
               </Link>
             ))
           ) : (
             <p className="px-4 py-3 text-sm text-muted-foreground">
-              No matching tools. Try a different name or keyword.
+              {t('noSearchMatches')}
             </p>
           )}
         </div>

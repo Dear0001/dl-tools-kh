@@ -1,3 +1,5 @@
+'use client';
+
 import React, { Suspense } from 'react';
 import HeroSearch from './components/HeroSearch';
 import CategoryFilters from './components/CategoryFilters';
@@ -5,8 +7,10 @@ import ToolGrid from './components/ToolGrid';
 import RecentTools from './components/RecentTools';
 import Toast from '@/components/ui/Toast';
 import { TOOLS, CATEGORIES } from '@/data/tools';
+import { useLocale } from '@/i18n/LocaleProvider';
 
 export default function HomePage() {
+  const { t } = useLocale();
   return (
     <>
       <Toast />
@@ -15,32 +19,32 @@ export default function HomePage() {
           <div>
             <p className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
               <span className="h-px w-6 bg-primary" />
-              Developer tools, ready when you are
+              {t('heroEyebrow')}
             </p>
             <h1 className="max-w-2xl text-balance text-4xl font-semibold leading-[1.08] tracking-tight text-foreground sm:text-5xl">
-              Find the right tool.
-              <span className="block text-muted-foreground">Get back to building.</span>
+              {t('heroFirstLine')}
+              <span className="block text-muted-foreground">{t('heroSecondLine')}</span>
             </h1>
             <p className="mt-5 max-w-xl text-base leading-7 text-muted-foreground">
-              Format, compare, convert, and inspect code or data right in your browser. Sign in only to sync preferences or save data.
+              {t('heroDescription')}
             </p>
             <div className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted-foreground">
               <span><strong className="font-semibold text-foreground">{TOOLS.length}</strong> tools</span>
-              <span><strong className="font-semibold text-foreground">{CATEGORIES.length}</strong> collections</span>
-              <span><strong className="font-semibold text-foreground">0</strong> files uploaded</span>
+              <span><strong className="font-semibold text-foreground">{CATEGORIES.length}</strong> {t('collections')}</span>
+              <span><strong className="font-semibold text-foreground">0</strong> {t('uploadedFiles')}</span>
             </div>
           </div>
 
           <div className="rounded-xl border border-border bg-card p-5 sm:p-6">
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-base font-semibold text-foreground">Find a tool</h2>
-                <p className="mt-1 text-sm text-muted-foreground">Search by name or what you need to do.</p>
+                <h2 className="text-base font-semibold text-foreground">{t('findTool')}</h2>
+                <p className="mt-1 text-sm text-muted-foreground">{t('searchHelp')}</p>
               </div>
             </div>
             <HeroSearch />
             <p className="mt-3 text-xs text-muted-foreground">
-              Your data stays on this device while you work.
+              {t('devicePrivacy')}
             </p>
           </div>
         </section>
@@ -52,12 +56,12 @@ export default function HomePage() {
         <section className="pt-9" aria-labelledby="browse-tools-heading">
           <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Tool library</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">{t('toolLibrary')}</p>
               <h2 id="browse-tools-heading" className="mt-1 text-2xl font-semibold tracking-tight text-foreground">
-                Browse all tools
+                {t('browseTools')}
               </h2>
             </div>
-            <p className="text-sm text-muted-foreground">Choose a collection, then open the tool you need.</p>
+            <p className="text-sm text-muted-foreground">{t('browseHelp')}</p>
           </div>
           <Suspense fallback={
             <div className="mb-5 flex flex-wrap gap-2" aria-hidden="true">
@@ -72,8 +76,8 @@ export default function HomePage() {
         </section>
 
         <footer className="mt-12 flex flex-col gap-2 border-t border-border pt-5 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-          <p>Useful utilities, without getting in your way.</p>
-          <p>Tools run in your browser · Account optional</p>
+          <p>{t('usefulTools')}</p>
+          <p>{t('clientTools')}</p>
         </footer>
       </div>
     </>
