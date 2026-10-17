@@ -4,6 +4,8 @@ import { useEffect, useRef, useState, type ChangeEvent, type DragEvent } from 'r
 import { ArrowDownToLine, ArrowLeftRight, Check, FileText, Files, LoaderCircle, Upload, X } from 'lucide-react';
 import type { Tool } from '@/data/tools';
 import { useLocale } from '@/i18n/LocaleProvider';
+import type { Paragraph as DocxParagraph } from 'docx';
+import type { jsPDF as JsPdfDocument } from 'jspdf';
 
 type ConversionMode = 'pdf-to-docx' | 'docx-to-pdf' | 'image-to-pdf' | 'image-to-docx';
 type ConversionResult = { url: string; previewUrl: string; filename: string; type: 'application/pdf' | 'docx' };
@@ -16,11 +18,20 @@ function isObject(value: unknown): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function isUploadForm(value: unknown): value is UploadForm {
-  return isObject(value) &&
-    typeof value.url === 'string' &&
-    isObject(value.parameters) &&
-    Object.values(value.parameters).every((parameter) => typeof parameter === 'string');
+function loadBrowserImage(file: File): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const imageUrl = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      URL.revokeObjectURL(imageUrl);
+      resolve(image);
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(imageUrl);
+      reject(new Error(`Could not read ${file.name}.`));
+    };
+    image.src = imageUrl;
+  });
 }
 
 function getResponseError(
@@ -52,6 +63,7 @@ export default function DocumentConverterPanel({ tool: _tool }: { tool: Tool }) 
   const xhrRef = useRef<XMLHttpRequest | null>(null);
   const requestControllerRef = useRef<AbortController | null>(null);
   const conversionTokenRef = useRef<string | null>(null);
+  const localResultUrlRef = useRef('');
 
   useEffect(() => {
     if (files.length === 0 || mode === 'docx-to-pdf') {
@@ -70,9 +82,95 @@ export default function DocumentConverterPanel({ tool: _tool }: { tool: Tool }) 
     };
   }, []);
 
+  useEffect(() => () => {
+    if (localResultUrlRef.current) URL.revokeObjectURL(localResultUrlRef.current);
+  }, []);
+
   const clearResult = () => {
+    if (localResultUrlRef.current) {
+      URL.revokeObjectURL(localResultUrlRef.current);
+      localResultUrlRef.current = '';
+    }
     setResult(null);
     setError('');
+  };
+
+  const convertImagesToPdf = async () => {
+    const { jsPDF } = await import('jspdf');
+    let pdf: JsPdfDocument | null = null;
+    const margin = 10;
+
+    for (const [index, sourceFile] of files.entries()) {
+      setProgress(Math.round((index / files.length) * 90));
+      const image = await loadBrowserImage(sourceFile);
+      const canvas = document.createElement('canvas');
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      const context = canvas.getContext('2d');
+      if (!context) throw new Error('Could not prepare the image for PDF conversion.');
+      context.fillStyle = '#ffffff';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, 0, 0);
+      const imageData = canvas.toDataURL('image/jpeg', 0.94);
+      const orientation = image.naturalWidth >= image.naturalHeight ? 'landscape' : 'portrait';
+      if (!pdf) pdf = new jsPDF({ orientation, unit: 'mm', format: 'a4', compress: true });
+      else pdf.addPage('a4', orientation);
+
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const scale = Math.min((pageWidth - margin * 2) / image.naturalWidth, (pageHeight - margin * 2) / image.naturalHeight);
+      const width = image.naturalWidth * scale;
+      const height = image.naturalHeight * scale;
+      pdf.addImage(imageData, 'JPEG', (pageWidth - width) / 2, (pageHeight - height) / 2, width, height, undefined, 'FAST');
+      setProgress(Math.round(((index + 1) / files.length) * 90));
+    }
+
+    if (!pdf) throw new Error(t('invalidFile'));
+    const blob = pdf.output('blob');
+    const url = URL.createObjectURL(blob);
+    localResultUrlRef.current = url;
+    const baseName = file?.name.replace(/\.[^.]+$/, '') || 'images';
+    setResult({ url, previewUrl: url, filename: `${baseName}${files.length > 1 ? '-images' : ''}.pdf`, type: 'application/pdf' });
+  };
+
+  const convertImagesToWord = async () => {
+    const { Document, ImageRun, Packer, Paragraph } = await import('docx');
+    const paragraphs: DocxParagraph[] = [];
+    for (const [index, sourceFile] of files.entries()) {
+      setProgress(Math.round((index / files.length) * 85));
+      const image = await loadBrowserImage(sourceFile);
+      const maxWidth = 600;
+      const maxHeight = 700;
+      const scale = Math.min(maxWidth / image.naturalWidth, maxHeight / image.naturalHeight, 1);
+      const width = Math.max(1, Math.round(image.naturalWidth * scale));
+      const height = Math.max(1, Math.round(image.naturalHeight * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      const context = canvas.getContext('2d');
+      if (!context) throw new Error('Could not prepare the image for Word conversion.');
+      context.fillStyle = '#ffffff';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, 0, 0);
+      const imageData = canvas.toDataURL('image/png');
+      paragraphs.push(new Paragraph({
+        children: [new ImageRun({
+          data: imageData,
+          type: 'png',
+          transformation: { width, height },
+          altText: { name: sourceFile.name, title: sourceFile.name, description: `Original image: ${sourceFile.name}` },
+        })],
+        pageBreakBefore: index > 0,
+      }));
+      setProgress(Math.round(((index + 1) / files.length) * 85));
+    }
+
+    const documentFile = new Document({ sections: [{ children: paragraphs }] });
+    const blob = await Packer.toBlob(documentFile);
+    const url = URL.createObjectURL(blob);
+    localResultUrlRef.current = url;
+    const baseName = file?.name.replace(/\.[^.]+$/, '') || 'images';
+    setResult({ url, previewUrl: '', filename: `${baseName}${files.length > 1 ? '-images' : ''}.docx`, type: 'docx' });
   };
 
   const selectFiles = (nextFiles?: File[]) => {
@@ -85,7 +183,7 @@ export default function DocumentConverterPanel({ tool: _tool }: { tool: Tool }) 
     const selectedFiles = isImageMode ? nextFiles : nextFiles.slice(0, 1);
     const validFiles = selectedFiles.every((nextFile) => {
       const filename = nextFile.name.toLowerCase();
-      const validImage = /\.(jpe?g|png|tiff?|webp|bmp|gif)$/.test(filename) && nextFile.type.startsWith('image/');
+      const validImage = /\.(jpe?g|png|webp|bmp|gif)$/.test(filename) && nextFile.type.startsWith('image/');
       const validDocument = mode === 'pdf-to-docx' ? filename.endsWith('.pdf') : filename.endsWith('.docx');
       return isImageMode ? validImage : validDocument;
     });
@@ -148,12 +246,18 @@ export default function DocumentConverterPanel({ tool: _tool }: { tool: Tool }) 
     setError('');
 
     try {
+      if (isImageMode) {
+        setProgress(5);
+        if (mode === 'image-to-pdf') await convertImagesToPdf();
+        else await convertImagesToWord();
+        setProgress(100);
+        return;
+      }
+
       const startResponse = await fetch('/api/converter/jobs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(isImageMode
-          ? { mode, files: files.map(({ name, size }) => ({ filename: name, size })) }
-          : { mode, filename: file.name, size: file.size }),
+        body: JSON.stringify({ mode, filename: file.name, size: file.size }),
         signal: controller.signal,
       });
       if (!startResponse.ok) throw new Error(getResponseError(startResponse, t('conversionFailed'), (key) => t(key)));
@@ -166,54 +270,47 @@ export default function DocumentConverterPanel({ tool: _tool }: { tool: Tool }) 
         throw new Error(t('serviceUnavailable'));
       }
       const token = startPayload.token;
-      const candidates = isImageMode
-        ? Array.isArray(startPayload.uploads) ? startPayload.uploads : []
-        : [startPayload.upload];
-      const uploads = candidates.filter(isUploadForm);
-      if (!/^[a-f0-9]{64}$/i.test(token) || uploads.length !== files.length) {
+      const uploadPayload = startPayload.upload;
+      const uploadIsValid = isObject(uploadPayload) && typeof uploadPayload.url === 'string' &&
+        isObject(uploadPayload.parameters) && Object.values(uploadPayload.parameters).every((parameter) => typeof parameter === 'string');
+      if (!/^[a-f0-9]{64}$/i.test(token) || !uploadIsValid) {
         throw new Error(t('serviceUnavailable'));
       }
       conversionTokenRef.current = token;
 
-      for (const [index, uploadFile] of files.entries()) {
-        const upload = uploads[index];
-        await new Promise<void>((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          xhrRef.current = xhr;
-          xhr.open('POST', upload.url);
-          xhr.timeout = 240_000;
-          xhr.upload.onprogress = (event) => {
-            if (event.lengthComputable) {
-              const ratio = event.loaded / event.total;
-              setProgress(Math.min(45, Math.round(((index + ratio) / files.length) * 45)));
-            }
-          };
-          xhr.onload = () => {
-            xhrRef.current = null;
-            if (xhr.status >= 200 && xhr.status < 300) resolve();
-            else reject(new Error(t('conversionFailed')));
-          };
-          xhr.onerror = () => {
-            xhrRef.current = null;
-            reject(new Error(t('serviceUnavailable')));
-          };
-          xhr.ontimeout = () => {
-            xhrRef.current = null;
-            reject(new Error(t('conversionFailed')));
-          };
-          xhr.onabort = () => {
-            xhrRef.current = null;
-            reject(new DOMException('Upload aborted.', 'AbortError'));
-          };
-          controller.signal.addEventListener('abort', () => xhr.abort(), { once: true });
+      const upload = uploadPayload as UploadForm;
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhrRef.current = xhr;
+        xhr.open('POST', upload.url);
+        xhr.timeout = 240_000;
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) setProgress(Math.min(45, Math.round((event.loaded / event.total) * 45)));
+        };
+        xhr.onload = () => {
+          xhrRef.current = null;
+          if (xhr.status >= 200 && xhr.status < 300) resolve();
+          else reject(new Error(t('conversionFailed')));
+        };
+        xhr.onerror = () => {
+          xhrRef.current = null;
+          reject(new Error(t('serviceUnavailable')));
+        };
+        xhr.ontimeout = () => {
+          xhrRef.current = null;
+          reject(new Error(t('conversionFailed')));
+        };
+        xhr.onabort = () => {
+          xhrRef.current = null;
+          reject(new DOMException('Upload aborted.', 'AbortError'));
+        };
+        controller.signal.addEventListener('abort', () => xhr.abort(), { once: true });
 
-          const uploadData = new FormData();
-          Object.entries(upload.parameters).forEach(([name, value]) => uploadData.append(name, value));
-          uploadData.append('file', uploadFile, uploadFile.name);
-          xhr.send(uploadData);
-        });
-        setProgress(Math.round(((index + 1) / files.length) * 45));
-      }
+        const uploadData = new FormData();
+        Object.entries(upload.parameters).forEach(([name, value]) => uploadData.append(name, value));
+        uploadData.append('file', file, file.name);
+        xhr.send(uploadData);
+      });
       setProgress(45);
 
       const deadline = Date.now() + 8 * 60 * 1000;
@@ -256,7 +353,7 @@ export default function DocumentConverterPanel({ tool: _tool }: { tool: Tool }) 
             url: statusPayload.downloadUrl,
             previewUrl: statusPayload.previewUrl,
             filename: statusPayload.filename,
-            type: mode === 'docx-to-pdf' || mode === 'image-to-pdf' ? 'application/pdf' : 'docx',
+            type: mode === 'docx-to-pdf' ? 'application/pdf' : 'docx',
           });
           return;
         }
@@ -311,7 +408,7 @@ export default function DocumentConverterPanel({ tool: _tool }: { tool: Tool }) 
     ? '.pdf,application/pdf'
     : mode === 'docx-to-pdf'
       ? '.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-      : 'image/jpeg,image/png,image/tiff,image/webp,image/bmp,image/gif';
+      : 'image/jpeg,image/png,image/webp,image/bmp,image/gif';
   const title = isImageMode ? t('imageConversion') : t('fileConversion');
 
   return (
@@ -334,7 +431,7 @@ export default function DocumentConverterPanel({ tool: _tool }: { tool: Tool }) 
             </div>
           </div>
           <p className="relative mt-5 rounded-lg border border-border/70 bg-background/60 px-3 py-2.5 text-xs leading-5 text-muted-foreground">
-            {t('privacyNotice')}
+            {isImageMode ? t('localImagePrivacy') : t('privacyNotice')}
           </p>
         </header>
 
@@ -461,7 +558,7 @@ export default function DocumentConverterPanel({ tool: _tool }: { tool: Tool }) 
                 </div>
               ) : sourcePreviewUrls.length > 0 ? (
                 <div className="overflow-hidden rounded-xl border border-border">
-                  <p className="border-b border-border bg-background px-4 py-2 text-xs font-medium text-muted-foreground">{isImageMode ? t('imagePreview') : t('sourcePreview')}</p>
+                  <p className="border-b border-border bg-background px-4 py-2 text-xs font-medium text-muted-foreground">{isImageMode ? mode === 'image-to-docx' ? t('wordSourceImages') : t('imagePreview') : t('sourcePreview')}</p>
                   {isImageMode ? (
                     <div className="grid max-h-[min(65vh,48rem)] grid-cols-2 gap-3 overflow-auto bg-background/40 p-3 sm:grid-cols-3">
                       {sourcePreviewUrls.map((preview, index) => (
@@ -479,7 +576,7 @@ export default function DocumentConverterPanel({ tool: _tool }: { tool: Tool }) 
               ) : null}
 
               <p className="text-xs leading-5 text-muted-foreground">
-                {mode === 'pdf-to-docx' ? `${t('layoutNote')} ${t('scannedPdf')}` : t('layoutNote')}
+                {mode === 'image-to-docx' ? t('localOcrNote') : mode === 'pdf-to-docx' ? `${t('layoutNote')} ${t('scannedPdf')}` : t('layoutNote')}
               </p>
               <button type="button" className="btn-ghost px-4 py-2 text-sm" onClick={reset}>
                 {t('convertAnother')}
@@ -499,9 +596,7 @@ export default function DocumentConverterPanel({ tool: _tool }: { tool: Tool }) 
         </section>
 
         <p className="px-1 text-xs leading-5 text-muted-foreground">
-          {locale === 'kh'
-            ? 'រូបភាពទៅ Word និង PDF ដែលបានស្កេនប្រើ OCR របស់សេវាបម្លែង។ លទ្ធផលអាចខុសគ្នាតាមគុណភាពរូបភាព ភាសា និងប្លង់។'
-            : 'Image to Word and scanned PDF conversions use provider OCR. Results vary with image quality, language, and layout.'}
+          {isImageMode ? t('localOcrNote') : mode === 'pdf-to-docx' ? t('scannedPdf') : t('layoutNote')}
         </p>
       </div>
     </div>
