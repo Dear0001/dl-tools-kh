@@ -4,7 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import AppLogo from '@/components/ui/AppLogo';
-import { Menu, X, Zap, HandCoins, LogIn, LogOut, ChevronDown, CircleUserRound } from 'lucide-react';
+import { Menu, X, Zap, HandCoins, LogIn, LogOut, ChevronDown, CircleUserRound, Heart } from 'lucide-react';
 import { signIn, signOut, useSession } from 'next-auth/react';
 import { toast } from 'sonner';
 import { CATEGORIES, TOOLS } from '@/data/tools';
@@ -217,9 +217,13 @@ export default function Topbar() {
                             onMouseLeave={() => setOpenMenu(null)}
                             onFocus={() => setOpenMenu(link.menu)}
                           >
-                            <div className={`flex items-center rounded-md text-sm font-medium transition-colors ${
-                              isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                            }`}>
+                            <div
+                              data-active={isActive}
+                              data-open={openMenu === link.menu}
+                              className={`nav-liquid-control flex items-center rounded-lg text-sm font-medium transition-colors ${
+                                isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+                              }`}
+                            >
                               <Link href={link.href} className="px-3 py-1.5">{link.label}</Link>
                               <button
                                 type="button"
@@ -235,7 +239,7 @@ export default function Topbar() {
                             <div className={`invisible absolute left-1/2 top-full z-[60] w-[min(92vw,46rem)] -translate-x-1/2 pt-2 opacity-0 transition duration-150 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 ${
                               openMenu === link.menu ? 'visible opacity-100' : ''
                             }`}>
-                              <div className="max-h-[min(70vh,34rem)] overflow-y-auto rounded-xl border border-border bg-card p-4 shadow-2xl">
+                              <div className="nav-liquid-glass nav-tools-dropdown max-h-[min(70vh,34rem)] overflow-y-auto rounded-xl p-4">
                                 <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">
                                   {link.menu === 'hub' ? t('allTools') : t('popularTools')}
                                 </p>
@@ -288,7 +292,7 @@ export default function Topbar() {
             <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
               <button
                 type="button"
-                className="btn-ghost hidden rounded-md px-3 py-1.5 text-sm font-medium lg:inline-flex"
+                className="nav-liquid-control nav-support-control btn-ghost hidden rounded-lg px-3 py-1.5 text-sm font-medium lg:inline-flex"
                 onClick={() => setSupportOpen(true)}
                 aria-label={texts.support}
               >
@@ -299,7 +303,7 @@ export default function Topbar() {
                   <button
                     type="button"
                     ref={profileTriggerRef}
-                    className="flex h-9 items-center gap-2 rounded-full border border-border bg-card py-1 pl-1 pr-2 text-sm text-foreground shadow-sm transition hover:border-primary/40 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                    className="nav-liquid-control flex h-9 items-center gap-2 rounded-full py-1 pl-1 pr-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                     onClick={() => setProfileMenuOpen((open) => !open)}
                     aria-label={locale === 'kh' ? 'បើកម៉ឺនុយគណនី' : 'Open profile menu'}
                     aria-expanded={profileMenuOpen}
@@ -323,7 +327,7 @@ export default function Topbar() {
                     <ChevronDown size={14} className={`text-muted-foreground transition-transform ${profileMenuOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
                   </button>
                   {profileMenuOpen && (
-                    <div className="absolute right-0 top-full z-[70] mt-2 w-72 overflow-hidden rounded-xl border border-border bg-card p-2 shadow-xl" role="menu" aria-label={locale === 'kh' ? 'ម៉ឺនុយគណនី' : 'Account menu'}>
+                    <div className="nav-liquid-glass absolute right-0 top-full z-[70] mt-2 w-72 overflow-hidden rounded-xl p-2" role="menu" aria-label={locale === 'kh' ? 'ម៉ឺនុយគណនី' : 'Account menu'}>
                       {authStatus === 'authenticated' ? (
                         <>
                           <div className="flex items-center gap-3 border-b border-border px-3 py-3">
@@ -379,7 +383,7 @@ export default function Topbar() {
                   )}
               </div>
               <select
-                className="hidden rounded-md border border-border bg-card px-2.5 py-1.5 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary lg:inline-flex"
+                className="nav-liquid-control hidden rounded-lg px-2.5 py-1.5 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary lg:inline-flex"
                 onChange={(event) => handleThemeChange(event.target.value as Theme)}
                 value={theme}
                 aria-label={texts.theme}
@@ -389,7 +393,7 @@ export default function Topbar() {
               <select
                 value={locale}
                 onChange={(event) => handleLocaleChange(event.target.value as 'en' | 'kh')}
-                className="hidden rounded-md border border-border bg-card px-3 py-1.5 text-sm text-foreground outline-none md:inline-flex"
+                className="nav-liquid-control hidden rounded-lg px-3 py-1.5 text-sm text-foreground outline-none md:inline-flex"
                 aria-label={texts.language}
               >
                 <option value="en">EN</option>
@@ -399,18 +403,18 @@ export default function Topbar() {
                 href="https://github.com/Dear0001"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="btn-icon hidden lg:flex"
+                className="nav-liquid-control btn-icon hidden rounded-lg lg:flex"
                 aria-label="View on GitHub"
               >
                 <GithubIcon size={16} />
               </a>
-              <span className="hidden items-center gap-1.5 text-xs text-muted-foreground xl:flex">
+              <span className="nav-liquid-control hidden items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs text-muted-foreground xl:flex">
                 <span className="status-dot-success" />
                 {texts.allClient}
               </span>
               <button
                 type="button"
-                className="btn-icon md:hidden"
+                className="nav-liquid-control btn-icon rounded-lg md:hidden"
                 onClick={() => setMobileOpen(!mobileOpen)}
                 aria-label={t('toggleMenu')}
                 aria-expanded={mobileOpen}
@@ -423,42 +427,38 @@ export default function Topbar() {
         </div>
       </header>
       {supportOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-background/70 backdrop-blur-sm fade-in">
-          <div className="relative w-full max-w-md overflow-hidden rounded-3xl border border-border bg-card shadow-2xl slide-up">
-            <div className="absolute inset-0 overflow-hidden rounded-3xl bg-animated-background opacity-30" aria-hidden="true" />
-            <div className="relative">
-              <div className="flex items-center justify-between gap-2 border-b px-2 py-2 bg-gradient-to-r from-red-600 to-red-500 text-white">
-                <div>
-                  <h3 className="text-base font-semibold uppercase tracking-[0.2em]">{texts.support}</h3>
-                </div>
-                <button type="button" className="btn-icon text-white transition-transform duration-200 hover:scale-110" onClick={() => setSupportOpen(false)} aria-label={locale === 'kh' ? 'បិទ' : 'Close support modal'}>
-                  <X size={16} />
-                </button>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/65 p-4 backdrop-blur-md fade-in">
+          <div role="dialog" aria-modal="true" aria-labelledby="support-modal-title" className="relative max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-2xl border border-border bg-card shadow-2xl slide-up">
+            <div className="flex items-center justify-between gap-4 border-b border-border px-5 py-4">
+              <div className="flex items-center gap-3">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-red-500/10 text-red-500" aria-hidden="true">
+                  <Heart size={18} />
+                </span>
+                <h3 id="support-modal-title" className="text-base font-semibold tracking-normal text-foreground">{texts.support}</h3>
               </div>
-              <div className="px-5 py-4">
-                <div className="rounded-[32px] border border-border bg-white p-5 shadow-card-hover transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_20px_70px_rgba(0,212,170,0.08)]">
-                  <div className="text-center">
-                    <p className="text-base font-semibold text-foreground">{texts.supportTitle}</p>
-                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                      {texts.supportMessage}
-                    </p>
-                  </div>
-                  <div className="relative mx-auto mt-6 flex w-full max-w-[280px] justify-center">
-                    <div className="absolute inset-0 rounded-[36px] bg-gradient-to-br from-red-200/40 via-transparent to-teal-100/30 blur-xl" />
-                    <div className="relative flex h-[240px] w-[240px] items-center justify-center overflow-hidden rounded-[28px] border border-border bg-[#f8f8f8] p-3 shadow-lg">
-                      <div className="absolute inset-0 rounded-[28px] border border-white/10 shadow-[0_0_0_1px_rgba(255,255,255,0.25)]" />
-                      <Image
-                        src="/assets/images/qr-code.jpg"
-                        alt="Support QR code"
-                        width={240}
-                        height={240}
-                        className="relative h-full w-full object-contain"
-                      />
-                    </div>
-                  </div>
-                </div>
-                <p className="mt-4 text-sm font-medium text-foreground text-center">{texts.supportCta}</p>
+              <button type="button" className="btn-icon rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground" onClick={() => setSupportOpen(false)} aria-label={locale === 'kh' ? 'បិទ' : 'Close support modal'}>
+                <X size={18} />
+              </button>
+            </div>
+            <div className="px-5 py-6 sm:px-8">
+              <div className="text-center">
+                <p className="text-lg font-semibold text-foreground">{texts.supportTitle}</p>
+                <p className={`mx-auto mt-2 max-w-sm text-sm text-muted-foreground ${locale === 'kh' ? 'leading-8' : 'leading-6'}`}>
+                  {texts.supportMessage}
+                </p>
               </div>
+              <div className="mx-auto mt-6 w-full max-w-[300px] rounded-2xl border border-border bg-white p-2 shadow-lg">
+                <Image
+                  src="/assets/images/qr-code.jpg"
+                  alt="Support QR code"
+                  width={300}
+                  height={300}
+                  className="h-auto w-full rounded-xl object-contain"
+                />
+              </div>
+              <p className={`mt-5 text-center text-sm font-medium text-foreground ${locale === 'kh' ? 'leading-8' : 'leading-6'}`}>
+                {texts.supportCta}
+              </p>
             </div>
           </div>
         </div>
@@ -563,7 +563,7 @@ export default function Topbar() {
               )}
               <button
                 type="button"
-                className="btn-ghost w-full px-4 py-2 rounded-md text-left text-sm font-medium"
+                className="nav-liquid-control nav-support-control btn-ghost w-full px-4 py-2 rounded-md text-left text-sm font-medium"
                 onClick={() => {
                   setSupportOpen(true);
                   setMobileOpen(false);
@@ -572,7 +572,7 @@ export default function Topbar() {
                 <HandCoins size={14} />
                 {texts.support}
               </button>
-              <label className="flex items-center justify-between gap-3 rounded-md border border-border bg-background px-4 py-2 text-sm text-foreground">
+              <label className="nav-liquid-control flex items-center justify-between gap-3 rounded-md px-4 py-2 text-sm text-foreground">
                 <span>{texts.theme}</span>
                 <select
                   value={theme}
@@ -583,7 +583,7 @@ export default function Topbar() {
                   {THEMES.map((option) => <option key={option} value={option}>{texts[option]}</option>)}
                 </select>
               </label>
-              <label className="flex items-center justify-between gap-3 px-4 py-2 rounded-md border border-border bg-background text-sm text-foreground">
+              <label className="nav-liquid-control flex items-center justify-between gap-3 px-4 py-2 rounded-md text-sm text-foreground">
                 <span>{texts.language}</span>
                 <select
                   value={locale}

@@ -10,7 +10,7 @@ const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
 const JOB_TTL_MS = 24 * 60 * 60 * 1000;
 const CLOUDCONVERT_API_URL = 'https://api.cloudconvert.com/v2';
 
-type ConversionMode = 'pdf-to-docx' | 'docx-to-pdf';
+type ConversionMode = 'pdf-to-docx' | 'docx-to-pdf' | 'image-to-pdf' | 'image-to-docx';
 type JsonObject = Record<string, unknown>;
 
 function isObject(value: unknown): value is JsonObject {
@@ -23,7 +23,9 @@ function safeFilename(value: string): string {
 }
 
 function getMode(value: unknown): ConversionMode | null {
-  return value === 'pdf-to-docx' || value === 'docx-to-pdf' ? value : null;
+  return value === 'pdf-to-docx' || value === 'docx-to-pdf' || value === 'image-to-pdf' || value === 'image-to-docx'
+    ? value
+    : null;
 }
 
 function hashToken(token: string): string {
@@ -182,9 +184,14 @@ export async function POST(request: Request) {
   }
 
   const filename = safeFilename(body.filename);
-  const expectedExtension = mode === 'pdf-to-docx' ? '.pdf' : '.docx';
+  const expectedExtension = mode === 'pdf-to-docx' ? '.pdf' : mode === 'docx-to-pdf' ? '.docx' : '';
   const size = body.size;
-  if (!filename.toLowerCase().endsWith(expectedExtension) || size <= 0) {
+  const extension = filename.toLowerCase().slice(filename.lastIndexOf('.'));
+  const supportedImageExtensions = ['.jpg', '.jpeg', '.png', '.tif', '.tiff', '.webp', '.bmp', '.gif'];
+  const validExtension = mode === 'image-to-pdf' || mode === 'image-to-docx'
+    ? supportedImageExtensions.includes(extension)
+    : filename.toLowerCase().endsWith(expectedExtension);
+  if (!validExtension || size <= 0) {
     return Response.json({ error: 'The file type or size is invalid for this conversion.' }, { status: 400 });
   }
   if (size > MAX_UPLOAD_BYTES) {
@@ -205,26 +212,40 @@ export async function POST(request: Request) {
     where: { windowStartedAt: { lt: new Date(now.getTime() - 24 * 60 * 60 * 1000) } },
   });
 
-  const outputExtension = mode === 'pdf-to-docx' ? '.docx' : '.pdf';
-  const nameWithoutExtension = filename.slice(0, -expectedExtension.length) || 'converted';
+  const outputExtension = mode === 'pdf-to-docx' || mode === 'image-to-docx' ? '.docx' : '.pdf';
+  const nameWithoutExtension = filename.slice(0, filename.lastIndexOf('.')) || 'converted';
   const outputFilename = `${nameWithoutExtension}${outputExtension}`;
+  const tasks: JsonObject = {
+    'import-file': { operation: 'import/upload' },
+  };
+  if (mode === 'image-to-docx') {
+    tasks['image-to-pdf'] = { operation: 'convert', input: 'import-file', output_format: 'pdf' };
+    tasks['ocr-image-pdf'] = {
+      operation: 'pdf/ocr',
+      input: 'image-to-pdf',
+      language: ['eng', 'khm'],
+    };
+    tasks['convert-file'] = {
+      operation: 'convert',
+      input: 'ocr-image-pdf',
+      output_format: 'docx',
+      filename: outputFilename,
+    };
+  } else {
+    tasks['convert-file'] = {
+      operation: 'convert',
+      input: 'import-file',
+      output_format: outputExtension.slice(1),
+      filename: outputFilename,
+    };
+  }
+  tasks['preview-file'] = { operation: 'export/url', input: 'convert-file', inline: true };
+  tasks['download-file'] = { operation: 'export/url', input: 'convert-file' };
   let createResponse: Response;
   try {
     createResponse = await cloudConvertRequest('/jobs', {
       method: 'POST',
-      body: JSON.stringify({
-        tasks: {
-          'import-file': { operation: 'import/upload' },
-          'convert-file': {
-            operation: 'convert',
-            input: 'import-file',
-            output_format: outputExtension.slice(1),
-            filename: outputFilename,
-          },
-          'preview-file': { operation: 'export/url', input: 'convert-file', inline: true },
-          'download-file': { operation: 'export/url', input: 'convert-file' },
-        },
-      }),
+      body: JSON.stringify({ tasks }),
     });
   } catch (error) {
     console.error('Could not create a CloudConvert job.', error);

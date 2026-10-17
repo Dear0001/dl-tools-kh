@@ -505,16 +505,21 @@ export default function JsonFormatterPanel({ tool }: { tool: Tool }) {
       return { format: 'string', value, fragments: [] };
     }
 
+    // Some API clients escape Base64 padding as \= inside otherwise valid JSON.
+    // Normalize it before strict format detection so parseJsonLike can repair the
+    // response instead of rejecting the whole document as invalid JSON.
+    const parseableValue = repairEscapedBase64Padding(value);
+
     if (selectedFormat === 'string') {
       return { format: 'string', value, fragments: [] };
     }
 
-    const fragments = findJsonFragments(value);
+    const fragments = findJsonFragments(parseableValue);
     if (selectedFormat === 'mixed') {
       return { format: 'mixed', fragments };
     }
 
-    const detected = detectInputFormat(value);
+    const detected = detectInputFormat(parseableValue);
     if (selectedFormat === 'auto' && detected.format === 'invalid-json') {
       return { format: 'json', fragments: [], error: detected.error };
     }
@@ -526,7 +531,7 @@ export default function JsonFormatterPanel({ tool }: { tool: Tool }) {
         return { format: 'string', value, fragments: [] };
       }
       try {
-        return { format: 'json', value: parseJsonLike(value), fragments: [] };
+        return { format: 'json', value: parseJsonLike(parseableValue), fragments: [] };
       } catch {
         return { format: 'string', value, fragments: [] };
       }
@@ -537,7 +542,7 @@ export default function JsonFormatterPanel({ tool }: { tool: Tool }) {
     }
 
     try {
-      return { format: 'json', value: parseJsonLike(value), fragments: [] };
+      return { format: 'json', value: parseJsonLike(parseableValue), fragments: [] };
     } catch (parseError) {
       const message =
         selectedFormat === 'json'
@@ -925,7 +930,7 @@ export default function JsonFormatterPanel({ tool }: { tool: Tool }) {
           outputPanel={
             <div className="flex h-full flex-col">
               {!showImagePreviews && (
-                <div className="flex-1 min-h-0">
+                <div key="formatted-output" className="flex-1 min-h-0">
                   <CodeOutput
                     value={output}
                     language={outputLanguage}
@@ -934,7 +939,7 @@ export default function JsonFormatterPanel({ tool }: { tool: Tool }) {
                 </div>
               )}
               {showImagePreviews && previews.length > 0 && (
-                <div className="flex-1 min-h-0 overflow-auto bg-secondary/20 p-3 space-y-3">
+                <div key="image-previews" className="flex-1 min-h-0 overflow-auto bg-secondary/20 p-3 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                     <ImageIcon size={12} />

@@ -53,7 +53,7 @@ export default function HeroSearch() {
 
   return (
     <div
-      className="relative max-w-xl"
+      className="relative w-full"
       onBlur={(event) => {
         const nextTarget = event.relatedTarget;
         if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) {
@@ -66,7 +66,7 @@ export default function HeroSearch() {
         <input
           ref={inputRef}
           type="text"
-          className="search-input"
+          className="search-input h-12 rounded-xl text-base sm:h-14"
           placeholder={t('searchPlaceholder')}
           value={query}
           onChange={(e) => setQuery(e.target.value)}

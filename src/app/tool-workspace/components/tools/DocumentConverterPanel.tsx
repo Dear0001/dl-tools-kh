@@ -5,7 +5,7 @@ import { ArrowDownToLine, ArrowLeftRight, Check, FileText, Files, LoaderCircle, 
 import type { Tool } from '@/data/tools';
 import { useLocale } from '@/i18n/LocaleProvider';
 
-type ConversionMode = 'pdf-to-docx' | 'docx-to-pdf';
+type ConversionMode = 'pdf-to-docx' | 'docx-to-pdf' | 'image-to-pdf' | 'image-to-docx';
 type ConversionResult = { url: string; previewUrl: string; filename: string; type: 'application/pdf' | 'docx' };
 type JsonObject = Record<string, unknown>;
 
@@ -28,7 +28,9 @@ function getResponseError(
 
 export default function DocumentConverterPanel({ tool: _tool }: { tool: Tool }) {
   const { locale, t } = useLocale();
-  const [mode, setMode] = useState<ConversionMode>('pdf-to-docx');
+  const [mode, setMode] = useState<ConversionMode>(() =>
+    _tool.id === 'tool-image-to-pdf' ? 'image-to-pdf' : _tool.id === 'tool-image-to-word' ? 'image-to-docx' : 'pdf-to-docx',
+  );
   const [file, setFile] = useState<File | null>(null);
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -42,7 +44,7 @@ export default function DocumentConverterPanel({ tool: _tool }: { tool: Tool }) 
   const conversionTokenRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!file || mode !== 'pdf-to-docx') {
+    if (!file || mode === 'docx-to-pdf') {
       setSourcePreviewUrl('');
       return;
     }
@@ -70,8 +72,11 @@ export default function DocumentConverterPanel({ tool: _tool }: { tool: Tool }) 
       setFile(null);
       return;
     }
-    const expectedExtension = mode === 'pdf-to-docx' ? '.pdf' : '.docx';
-    if (!nextFile.name.toLowerCase().endsWith(expectedExtension)) {
+    const filename = nextFile.name.toLowerCase();
+    const isImageMode = mode === 'image-to-pdf' || mode === 'image-to-docx';
+    const validImage = /\.(jpe?g|png|tiff?|webp|bmp|gif)$/.test(filename);
+    const validDocument = mode === 'pdf-to-docx' ? filename.endsWith('.pdf') : filename.endsWith('.docx');
+    if (isImageMode ? !validImage || !nextFile.type.startsWith('image/') : !validDocument) {
       setFile(null);
       setError(t('invalidFile'));
       return;
@@ -231,7 +236,7 @@ export default function DocumentConverterPanel({ tool: _tool }: { tool: Tool }) 
             url: statusPayload.downloadUrl,
             previewUrl: statusPayload.previewUrl,
             filename: statusPayload.filename,
-            type: mode === 'docx-to-pdf' ? 'application/pdf' : 'docx',
+            type: mode === 'docx-to-pdf' || mode === 'image-to-pdf' ? 'application/pdf' : 'docx',
           });
           return;
         }
@@ -268,8 +273,20 @@ export default function DocumentConverterPanel({ tool: _tool }: { tool: Tool }) 
     setError('');
   };
 
-  const targetLabel = mode === 'pdf-to-docx' ? t('pdfToWord') : t('wordToPdf');
-  const accepted = mode === 'pdf-to-docx' ? '.pdf,application/pdf' : '.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  const isImageMode = mode === 'image-to-pdf' || mode === 'image-to-docx';
+  const targetLabel = mode === 'pdf-to-docx'
+    ? t('pdfToWord')
+    : mode === 'docx-to-pdf'
+      ? t('wordToPdf')
+      : mode === 'image-to-pdf'
+        ? t('imageToPdf')
+        : t('imageToWord');
+  const accepted = mode === 'pdf-to-docx'
+    ? '.pdf,application/pdf'
+    : mode === 'docx-to-pdf'
+      ? '.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      : 'image/jpeg,image/png,image/tiff,image/webp,image/bmp,image/gif';
+  const title = isImageMode ? t('imageConversion') : t('fileConversion');
 
   return (
     <div className="h-full overflow-auto bg-background">
@@ -285,9 +302,9 @@ export default function DocumentConverterPanel({ tool: _tool }: { tool: Tool }) 
                 {locale === 'kh' ? 'ឯកសារ · អង់គ្លេស + ខ្មែរ' : 'DOCUMENTS · ENGLISH + KHMER'}
               </p>
               <h2 className="mt-2 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-                {t('fileConversion')}
+                {title}
               </h2>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{t('converterSubtitle')}</p>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{isImageMode ? t('imageConverterSubtitle') : t('converterSubtitle')}</p>
             </div>
           </div>
           <p className="relative mt-5 rounded-lg border border-border/70 bg-background/60 px-3 py-2.5 text-xs leading-5 text-muted-foreground">
@@ -295,11 +312,13 @@ export default function DocumentConverterPanel({ tool: _tool }: { tool: Tool }) 
           </p>
         </header>
 
-        <section className="rounded-2xl border border-border bg-card p-4 sm:p-6" aria-label={t('fileConversion')}>
+        <section className="rounded-2xl border border-border bg-card p-4 sm:p-6" aria-label={title}>
           <div className="grid grid-cols-2 gap-2 rounded-xl bg-background p-1.5">
             {([
               ['pdf-to-docx', t('pdfToWord')],
               ['docx-to-pdf', t('wordToPdf')],
+              ['image-to-pdf', t('imageToPdf')],
+              ['image-to-docx', t('imageToWord')],
             ] as const).map(([value, label]) => (
               <button
                 key={value}
@@ -352,7 +371,7 @@ export default function DocumentConverterPanel({ tool: _tool }: { tool: Tool }) 
                     {t('chooseFile')}
                   </button>
                   <p className="mt-3 text-xs text-muted-foreground">
-                    {mode === 'pdf-to-docx' ? t('acceptedPdf') : t('acceptedDocx')}
+                    {isImageMode ? t('acceptedImage') : mode === 'pdf-to-docx' ? t('acceptedPdf') : t('acceptedDocx')}
                   </p>
                 </>
               )}
@@ -406,8 +425,13 @@ export default function DocumentConverterPanel({ tool: _tool }: { tool: Tool }) 
                 </div>
               ) : sourcePreviewUrl ? (
                 <div className="overflow-hidden rounded-xl border border-border">
-                  <p className="border-b border-border bg-background px-4 py-2 text-xs font-medium text-muted-foreground">{t('sourcePreview')}</p>
-                  <iframe title={t('sourcePreview')} src={sourcePreviewUrl} className="h-[min(65vh,48rem)] w-full bg-white" />
+                  <p className="border-b border-border bg-background px-4 py-2 text-xs font-medium text-muted-foreground">{isImageMode ? t('imagePreview') : t('sourcePreview')}</p>
+                  {isImageMode ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={sourcePreviewUrl} alt={t('imagePreview')} className="mx-auto max-h-[min(65vh,48rem)] w-auto max-w-full object-contain" />
+                  ) : (
+                    <iframe title={t('sourcePreview')} src={sourcePreviewUrl} className="h-[min(65vh,48rem)] w-full bg-white" />
+                  )}
                 </div>
               ) : null}
 
@@ -433,8 +457,8 @@ export default function DocumentConverterPanel({ tool: _tool }: { tool: Tool }) 
 
         <p className="px-1 text-xs leading-5 text-muted-foreground">
           {locale === 'kh'
-            ? 'PDF ដែលបានស្កេនត្រូវបានស្គាល់អក្សរដោយ Tesseract OCR។ លទ្ធផលអាចខុសគ្នាតាមគុណភាពស្កេន ពុម្ពអក្សរ និងប្លង់ឯកសារ។'
-            : 'Scanned PDFs are recognized with Tesseract OCR. Results vary with scan quality, fonts, and page layout.'}
+            ? 'រូបភាពទៅ Word និង PDF ដែលបានស្កេនប្រើ OCR របស់សេវាបម្លែង។ លទ្ធផលអាចខុសគ្នាតាមគុណភាពរូបភាព ភាសា និងប្លង់។'
+            : 'Image to Word and scanned PDF conversions use provider OCR. Results vary with image quality, language, and layout.'}
         </p>
       </div>
     </div>

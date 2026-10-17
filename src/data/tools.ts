@@ -388,6 +388,24 @@ export const TOOLS: Tool[] = [
     popular: true,
     isNew: true,
   },
+  {
+    id: 'tool-image-to-pdf',
+    name: 'Image to PDF',
+    description: 'Convert an image into a downloadable PDF document.',
+    category: 'documents',
+    tags: ['image', 'jpg', 'png', 'pdf', 'convert'],
+    icon: 'Image',
+    isNew: true,
+  },
+  {
+    id: 'tool-image-to-word',
+    name: 'Image to Word',
+    description: 'Recognize text in an image and convert it into an editable Word document.',
+    category: 'documents',
+    tags: ['image', 'ocr', 'word', 'docx', 'convert', 'khmer'],
+    icon: 'FileText',
+    isNew: true,
+  },
 ];
 
 export const CATEGORY_COLORS: Record<ToolCategory, { bg: string; text: string; border: string }> = {

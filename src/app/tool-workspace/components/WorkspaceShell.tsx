@@ -86,6 +86,8 @@ const PANEL_MAP: Record<string, React.ComponentType<{ tool: Tool }>> = {
   'tool-khqr-validator': KhqrValidatorPanel,
   'tool-qr-reader': QrReaderPanel,
   'tool-pdf-word-converter': DocumentConverterPanel,
+  'tool-image-to-pdf': DocumentConverterPanel,
+  'tool-image-to-word': DocumentConverterPanel,
 };
 
 export default function WorkspaceShell({ tool }: { tool: Tool }) {
@@ -147,7 +149,11 @@ export default function WorkspaceShell({ tool }: { tool: Tool }) {
           <div>
             <h1 className="text-sm font-semibold text-foreground leading-none">{getToolName(tool.id, tool.name, locale)}</h1>
             <p className="text-xs text-muted-foreground mt-0.5 hidden sm:block">
-              {tool.id === 'tool-pdf-word-converter' ? t('converterSubtitle') : tool.description}
+              {tool.id === 'tool-pdf-word-converter'
+                ? t('converterSubtitle')
+                : tool.id === 'tool-image-to-pdf' || tool.id === 'tool-image-to-word'
+                  ? t('imageConverterSubtitle')
+                  : tool.description}
             </p>
           </div>
         </div>

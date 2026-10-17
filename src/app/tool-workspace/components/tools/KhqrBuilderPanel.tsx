@@ -12,6 +12,34 @@ function tlv(tag: string, value: string): string {
   return `${tag}${len}${value}`;
 }
 
+function readMerchantName(payload: string): string {
+  let offset = 0;
+  while (offset + 4 <= payload.length) {
+    const tag = payload.slice(offset, offset + 2);
+    const length = Number(payload.slice(offset + 2, offset + 4));
+    if (!Number.isFinite(length) || length < 0) return '';
+    const value = payload.slice(offset + 4, offset + 4 + length);
+    if (value.length !== length) return '';
+    if (tag === '59') return value;
+    offset += 4 + length;
+  }
+  return '';
+}
+
+function readEmvTag(payload: string, targetTag: string): string {
+  let offset = 0;
+  while (offset + 4 <= payload.length) {
+    const tag = payload.slice(offset, offset + 2);
+    const length = Number(payload.slice(offset + 2, offset + 4));
+    if (!Number.isFinite(length) || length < 0) return '';
+    const value = payload.slice(offset + 4, offset + 4 + length);
+    if (value.length !== length) return '';
+    if (tag === targetTag) return value;
+    offset += 4 + length;
+  }
+  return '';
+}
+
 function buildKhqr(data: any): string {
   const isDynamic = data.mode === 'dynamic';
   let payload = '';
@@ -66,9 +94,10 @@ export default function KhqrBuilderPanel({ tool }: { tool: Tool }) {
   const [customString, setCustomString] = useState('');
   const [fgColor, setFgColor] = useState('#000000');
   const [bgColor, setBgColor] = useState('#ffffff');
-  const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null);
-  const [logoName, setLogoName] = useState<string | null>(null);
-  const [logoSize, setLogoSize] = useState(0.2); // 20% default
+  const defaultLogo = '/assets/images/bakong-mark.png';
+  const [logoDataUrl, setLogoDataUrl] = useState<string | null>(defaultLogo);
+  const [logoName, setLogoName] = useState<string | null>('Bakong logo');
+  const [logoSize, setLogoSize] = useState(0.16);
 
   // no external form state - only raw string input
 
@@ -88,40 +117,99 @@ export default function KhqrBuilderPanel({ tool }: { tool: Tool }) {
     }
   };
 
-  // render QR to canvas and composite logo according to current settings
+  // Render the QR as a KHQR payment card, then composite the selected center logo.
   const renderQr = async (content: string) => {
     if (!canvasRef.current) return;
     const canvas = canvasRef.current;
+    const cardWidth = 400;
+    const cardHeight = 560;
+    const qrSize = 300;
+    const qrCanvas = document.createElement('canvas');
     const opts: any = {
-      width: 240,
+      width: qrSize,
       margin: 2,
       color: { dark: fgColor, light: bgColor },
-      errorCorrectionLevel: logoDataUrl ? 'H' : 'M',
+      errorCorrectionLevel: 'H',
     };
-    await QRCode.toCanvas(canvas, content, opts);
+    await QRCode.toCanvas(qrCanvas, content, opts);
+
+    canvas.width = cardWidth;
+    canvas.height = cardHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(0, 0, cardWidth, cardHeight, 12);
+    ctx.clip();
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, cardWidth, cardHeight);
+    ctx.fillStyle = '#e31b23';
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(cardWidth, 0);
+    ctx.lineTo(cardWidth, 95);
+    ctx.lineTo(cardWidth - 30, 65);
+    ctx.lineTo(0, 65);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '600 34px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('KHQR', cardWidth / 2, 33);
+
+    const merchantName = readMerchantName(content);
+    if (merchantName) {
+      ctx.fillStyle = '#1f2937';
+      ctx.font = '400 15px Arial, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText(merchantName.slice(0, 38), 40, 101);
+    }
+    const amount = readEmvTag(content, '54');
+    const currencyCode = readEmvTag(content, '53');
+    const currency = currencyCode === '116' ? 'KHR' : currencyCode === '840' ? 'USD' : currencyCode;
+    if (amount) {
+      ctx.fillStyle = '#080808';
+      ctx.font = '700 34px Arial, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText(Number(amount).toLocaleString(undefined, { maximumFractionDigits: 4 }), 40, 145);
+      const amountWidth = ctx.measureText(Number(amount).toLocaleString(undefined, { maximumFractionDigits: 4 })).width;
+      ctx.fillStyle = '#374151';
+      ctx.font = '400 13px Arial, sans-serif';
+      ctx.fillText(currency, 48 + amountWidth, 150);
+    }
+    ctx.strokeStyle = '#e5e7eb';
+    ctx.setLineDash([4, 5]);
+    ctx.beginPath();
+    ctx.moveTo(0, 180);
+    ctx.lineTo(cardWidth, 180);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    const qrX = Math.round((cardWidth - qrSize) / 2);
+    const qrY = 208;
+    ctx.drawImage(qrCanvas, qrX, qrY, qrSize, qrSize);
+    ctx.restore();
 
     if (logoDataUrl) {
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
       const img = new Image();
       img.crossOrigin = 'anonymous';
       img.src = logoDataUrl;
       await new Promise((res, rej) => {
         img.onload = () => {
           try {
-            const size = Math.floor(Math.min(canvas.width, canvas.height) * logoSize);
-            const x = Math.floor((canvas.width - size) / 2);
-            const y = Math.floor((canvas.height - size) / 2);
-            // rounded clip for logo
-            const radius = Math.floor(size * 0.18);
+            const size = Math.floor(qrSize * logoSize);
+            const x = Math.floor((cardWidth - size) / 2);
+            const y = qrY + Math.floor((qrSize - size) / 2);
+            const radius = Math.floor(size / 2);
             ctx.save();
             ctx.beginPath();
-            ctx.moveTo(x + radius, y);
-            ctx.arcTo(x + size, y, x + size, y + size, radius);
-            ctx.arcTo(x + size, y + size, x, y + size, radius);
-            ctx.arcTo(x, y + size, x, y, radius);
-            ctx.arcTo(x, y, x + size, y, radius);
-            ctx.closePath();
+            ctx.arc(x + size / 2, y + size / 2, size / 2 + 7, 0, Math.PI * 2);
+            ctx.fillStyle = '#ffffff';
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(x + size / 2, y + size / 2, radius, 0, Math.PI * 2);
             ctx.clip();
             ctx.imageSmoothingEnabled = true;
             // preserve aspect ratio
@@ -176,8 +264,8 @@ export default function KhqrBuilderPanel({ tool }: { tool: Tool }) {
   };
 
   const removeLogo = () => {
-    setLogoDataUrl(null);
-    setLogoName(null);
+    setLogoDataUrl(defaultLogo);
+    setLogoName('Bakong logo');
   };
 
   const copyString = async () => {
@@ -280,8 +368,8 @@ export default function KhqrBuilderPanel({ tool }: { tool: Tool }) {
           <div className="flex flex-col gap-4">
             <div className="bg-card border border-border rounded-xl p-5 flex flex-col items-center">
               <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4 self-start">QR Code Preview</h4>
-              <div className="bg-[#0E0E10] rounded-xl p-4 flex items-center justify-center w-full">
-                <canvas ref={canvasRef} className="rounded-lg" style={{ width: 240, height: 240 }} />
+              <div className="w-full rounded-xl bg-muted/60 p-3 flex items-center justify-center">
+                <canvas ref={canvasRef} className="h-auto w-full max-w-[300px] rounded-xl shadow-lg" />
               </div>
               {generated && (
                 <div className="flex gap-2 mt-4 w-full">
