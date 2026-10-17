@@ -1,6 +1,7 @@
 ﻿import React from 'react';
 import type { Metadata, Viewport } from 'next';
 import Script from 'next/script';
+import { Analytics } from '@vercel/analytics/next';
 import { GeistSans } from 'geist/font/sans';
 import Topbar from '@/components/Topbar';
 import AuthProvider from '@/components/AuthProvider';
@@ -36,6 +37,7 @@ export default function RootLayout({
       <body className={`${GeistSans.className} relative`} suppressHydrationWarning>
         <AuthProvider>
           <GoogleAnalytics />
+          <Analytics />
           <Topbar />
           <main className="relative min-h-screen bg-background text-foreground">
             {children}
