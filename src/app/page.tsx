@@ -10,22 +10,23 @@ import { TOOLS, CATEGORIES } from '@/data/tools';
 import { useLocale } from '@/i18n/LocaleProvider';
 
 export default function HomePage() {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isKhmer = locale === 'kh';
   return (
     <>
       <Toast />
       <div className="mx-auto w-full max-w-screen-2xl px-4 pb-12 pt-8 sm:px-6 sm:pt-12 lg:px-8 xl:px-10 2xl:px-16">
         <section className="grid items-center gap-8 border-b border-border pb-10 md:grid-cols-[1.15fr_0.85fr] md:gap-12 md:pb-12">
           <div>
-            <p className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+            <p className={`mb-4 flex items-center gap-2 font-semibold text-primary ${isKhmer ? 'text-sm tracking-normal' : 'text-xs uppercase tracking-[0.18em]'}`}>
               <span className="h-px w-6 bg-primary" />
               {t('heroEyebrow')}
             </p>
-            <h1 className="max-w-2xl text-balance text-4xl font-semibold leading-[1.08] tracking-tight text-foreground sm:text-5xl">
+            <h1 className={`max-w-2xl text-balance font-semibold text-foreground ${isKhmer ? 'text-3xl leading-[1.45] sm:text-4xl sm:leading-[1.4]' : 'text-4xl leading-[1.08] tracking-tight sm:text-5xl'}`}>
               {t('heroFirstLine')}
               <span className="block text-muted-foreground">{t('heroSecondLine')}</span>
             </h1>
-            <p className="mt-5 max-w-xl text-base leading-7 text-muted-foreground">
+            <p className={`mt-5 max-w-xl text-base text-muted-foreground ${isKhmer ? 'leading-8 sm:leading-9' : 'leading-7'}`}>
               {t('heroDescription')}
             </p>
             <div className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted-foreground">

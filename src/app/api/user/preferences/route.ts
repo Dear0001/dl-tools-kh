@@ -2,6 +2,7 @@ import { auth } from '../../../../../auth';
 import { prisma } from '@/lib/prisma';
 
 const DEFAULT_PREFERENCES = { theme: 'light', locale: 'kh' };
+const THEMES = ['light', 'dark', 'nord', 'monokai'];
 
 export async function GET() {
   const session = await auth();
@@ -35,8 +36,8 @@ export async function PATCH(request: Request) {
   }
 
   const { theme, locale } = body as Record<string, unknown>;
-  if (theme !== undefined && theme !== 'light' && theme !== 'dark') {
-    return Response.json({ error: 'Theme must be "light" or "dark".' }, { status: 400 });
+  if (theme !== undefined && (typeof theme !== 'string' || !THEMES.includes(theme))) {
+    return Response.json({ error: 'Choose one of the available themes.' }, { status: 400 });
   }
   if (locale !== undefined && locale !== 'en' && locale !== 'kh') {
     return Response.json({ error: 'Locale must be "en" or "kh".' }, { status: 400 });

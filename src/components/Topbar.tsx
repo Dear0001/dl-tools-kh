@@ -1,14 +1,17 @@
 'use client';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import AppLogo from '@/components/ui/AppLogo';
-import { Menu, X, Zap, HandCoins, LogIn, LogOut, ChevronDown } from 'lucide-react';
+import { Menu, X, Zap, HandCoins, LogIn, LogOut, ChevronDown, CircleUserRound } from 'lucide-react';
 import { signIn, signOut, useSession } from 'next-auth/react';
 import { toast } from 'sonner';
 import { CATEGORIES, TOOLS } from '@/data/tools';
 import { getToolName, useLocale } from '@/i18n/LocaleProvider';
+
+type Theme = 'light' | 'dark' | 'nord' | 'monokai';
+const THEMES: Theme[] = ['light', 'dark', 'nord', 'monokai'];
 
 // Inline GitHub SVG since brand icons were removed in lucide-react v1
 function GithubIcon({ size = 16 }: { size?: number }) {
@@ -27,6 +30,8 @@ const i18n = {
     theme: 'Theme',
     light: 'Light',
     dark: 'Dark',
+    nord: 'Nord',
+    monokai: 'Monokai',
     language: 'Language',
     free: 'Free',
     support: 'Support',
@@ -41,6 +46,8 @@ const i18n = {
     theme: 'ប្រធានពណ៌',
     light: 'ស្រាល',
     dark: 'ងងឹត',
+    nord: 'ន័រដ៍',
+    monokai: 'ម៉ូណូកៃ',
     language: 'ភាសា',
     free: 'ឥតគិតថ្លៃ',
     support: 'ជួយគាំទ្រ',
@@ -55,17 +62,18 @@ export default function Topbar() {
   const { data: session, status: authStatus } = useSession();
   const { locale, setLocale, t } = useLocale();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [theme, setTheme] = useState<'dark' | 'light'>('light');
+  const [theme, setTheme] = useState<Theme>('light');
   const [supportOpen, setSupportOpen] = useState(false);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
+  const profileTriggerRef = useRef<HTMLButtonElement>(null);
   const [preferencesLoadedFor, setPreferencesLoadedFor] = useState<string | null>(null);
 
   useEffect(() => {
     try {
       const storedTheme = window.localStorage.getItem('devtoolkit-theme');
-      if (storedTheme === 'dark' || storedTheme === 'light') {
-        setTheme(storedTheme);
-      }
+      if (THEMES.includes(storedTheme as Theme)) setTheme(storedTheme as Theme);
     } catch {
       // ignore localStorage errors in unsupported environments
     }
@@ -84,9 +92,9 @@ export default function Topbar() {
       })
       .then((preferences) => {
         if (!active) return;
-        if (preferences.theme === 'light' || preferences.theme === 'dark') {
-          setTheme(preferences.theme);
-          window.localStorage.setItem('devtoolkit-theme', preferences.theme);
+        if (THEMES.includes(preferences.theme as Theme)) {
+          setTheme(preferences.theme as Theme);
+          window.localStorage.setItem('devtoolkit-theme', preferences.theme as Theme);
         }
         if (preferences.locale === 'en' || preferences.locale === 'kh') setLocale(preferences.locale);
         setPreferencesLoadedFor(userId);
@@ -117,19 +125,36 @@ export default function Topbar() {
     documents: locale === 'kh' ? 'ឯកសារ' : 'Documents',
   };
   const workspaceTools = TOOLS.filter((tool) => tool.popular || tool.id === 'tool-pdf-word-converter');
+  const userName = session?.user?.name?.trim() || session?.user?.email || (locale === 'kh' ? 'គណនីរបស់អ្នក' : 'Your account');
+  const userInitial = userName.charAt(0).toLocaleUpperCase();
+
+  useEffect(() => {
+    if (!profileMenuOpen) return;
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (event.target instanceof Node && !profileMenuRef.current?.contains(event.target)) setProfileMenuOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setProfileMenuOpen(false);
+        profileTriggerRef.current?.focus();
+      }
+    };
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [profileMenuOpen]);
 
   useEffect(() => {
     const root = document.documentElement;
-    if (theme === 'light') {
-      root.classList.add('light');
-      root.classList.remove('dark');
-    } else {
-      root.classList.add('dark');
-      root.classList.remove('light');
-    }
+    root.dataset.theme = theme;
+    root.classList.toggle('light', theme === 'light');
+    root.classList.toggle('dark', theme !== 'light');
   }, [theme]);
 
-  const savePreference = async (preference: { theme?: 'light' | 'dark'; locale?: 'en' | 'kh' }) => {
+  const savePreference = async (preference: { theme?: Theme; locale?: 'en' | 'kh' }) => {
     if (authStatus !== 'authenticated' || !session?.user?.id || preferencesLoadedFor !== session.user.id) return;
 
     try {
@@ -146,8 +171,7 @@ export default function Topbar() {
     }
   };
 
-  const toggleTheme = () => {
-    const next = theme === 'dark' ? 'light' : 'dark';
+  const handleThemeChange = (next: Theme) => {
     setTheme(next);
     try {
       window.localStorage.setItem('devtoolkit-theme', next);
@@ -271,39 +295,97 @@ export default function Topbar() {
                 <HandCoins size={14} />
                 {texts.support}
               </button>
-              {authStatus === 'authenticated' ? (
-                <>
-                  <span className="hidden max-w-32 truncate text-xs text-muted-foreground xl:inline">
-                    {session.user?.name ?? session.user?.email}
-                  </span>
+              <div className="relative" ref={profileMenuRef}>
                   <button
                     type="button"
-                    className="btn-ghost hidden rounded-md px-3 py-1.5 text-sm font-medium lg:inline-flex"
-                    onClick={() => void signOut()}
+                    ref={profileTriggerRef}
+                    className="flex h-9 items-center gap-2 rounded-full border border-border bg-card py-1 pl-1 pr-2 text-sm text-foreground shadow-sm transition hover:border-primary/40 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                    onClick={() => setProfileMenuOpen((open) => !open)}
+                    aria-label={locale === 'kh' ? 'បើកម៉ឺនុយគណនី' : 'Open profile menu'}
+                    aria-expanded={profileMenuOpen}
+                    aria-haspopup="menu"
+                    onKeyDown={(event) => {
+                      if (event.key === 'ArrowDown' && !profileMenuOpen) {
+                        event.preventDefault();
+                        setProfileMenuOpen(true);
+                        requestAnimationFrame(() => profileMenuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus());
+                      }
+                    }}
                   >
-                    <LogOut size={14} />
-                    {t('signOut')}
+                    {authStatus === 'authenticated' && session.user?.image ? (
+                      <Image src={session.user.image} alt="" width={28} height={28} unoptimized className="h-7 w-7 rounded-full object-cover" />
+                    ) : authStatus === 'authenticated' ? (
+                      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary">{userInitial}</span>
+                    ) : (
+                      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-muted text-muted-foreground"><CircleUserRound size={23} strokeWidth={1.7} /></span>
+                    )}
+                    <span className="hidden max-w-32 truncate md:inline">{authStatus === 'authenticated' ? userName : (locale === 'kh' ? 'គណនី' : 'Profile')}</span>
+                    <ChevronDown size={14} className={`text-muted-foreground transition-transform ${profileMenuOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
                   </button>
-                </>
-              ) : (
-                <button
-                  type="button"
-                  className="btn-ghost hidden rounded-md px-3 py-1.5 text-sm font-medium lg:inline-flex"
-                  onClick={() => void signIn('google')}
-                  disabled={authStatus === 'loading'}
-                >
-                  <LogIn size={14} />
-                  {t('signIn')}
-                </button>
-              )}
-              <button
-                type="button"
-                className="btn-ghost hidden rounded-md px-3 py-1.5 text-sm font-medium lg:inline-flex"
-                onClick={toggleTheme}
+                  {profileMenuOpen && (
+                    <div className="absolute right-0 top-full z-[70] mt-2 w-72 overflow-hidden rounded-xl border border-border bg-card p-2 shadow-xl" role="menu" aria-label={locale === 'kh' ? 'ម៉ឺនុយគណនី' : 'Account menu'}>
+                      {authStatus === 'authenticated' ? (
+                        <>
+                          <div className="flex items-center gap-3 border-b border-border px-3 py-3">
+                            {session.user?.image ? (
+                              <Image src={session.user.image} alt="" width={40} height={40} unoptimized className="h-10 w-10 rounded-full object-cover" />
+                            ) : (
+                              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/15 text-sm font-semibold text-primary">{userInitial}</span>
+                            )}
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-foreground">{userName}</p>
+                              {session.user?.email && session.user.name && <p className="truncate text-xs text-muted-foreground">{session.user.email}</p>}
+                              <p className="mt-0.5 text-[11px] text-primary">{locale === 'kh' ? 'បានចូលគណនី' : 'Signed in with Google'}</p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className="mt-2 flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-foreground transition hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                            onClick={() => {
+                              setProfileMenuOpen(false);
+                              void signOut({ callbackUrl: '/' });
+                            }}
+                          >
+                            <LogOut size={15} />
+                            {t('signOut')}
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-3 border-b border-border px-3 py-3">
+                            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground"><CircleUserRound size={30} strokeWidth={1.5} /></span>
+                            <div>
+                              <p className="text-sm font-semibold text-foreground">{locale === 'kh' ? 'អ្នកប្រើប្រាស់ភ្ញៀវ' : 'Guest profile'}</p>
+                              <p className="mt-0.5 text-xs text-muted-foreground">{authStatus === 'loading' ? (locale === 'kh' ? 'កំពុងផ្ទៀងផ្ទាត់…' : 'Checking sign-in…') : (locale === 'kh' ? 'ចូលគណនីដើម្បីធ្វើសមកាលកម្មទិន្នន័យ' : 'Sign in to sync your saved data')}</p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className="mt-2 flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-foreground transition hover:bg-muted hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                            onClick={() => {
+                              setProfileMenuOpen(false);
+                              void signIn('google');
+                            }}
+                            disabled={authStatus === 'loading'}
+                          >
+                            <LogIn size={15} />
+                            {t('signInGoogle')}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+              </div>
+              <select
+                className="hidden rounded-md border border-border bg-card px-2.5 py-1.5 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary lg:inline-flex"
+                onChange={(event) => handleThemeChange(event.target.value as Theme)}
+                value={theme}
                 aria-label={texts.theme}
               >
-                {texts.theme}: {theme === 'dark' ? texts.dark : texts.light}
-              </button>
+                {THEMES.map((option) => <option key={option} value={option}>{texts[option]}</option>)}
+              </select>
               <select
                 value={locale}
                 onChange={(event) => handleLocaleChange(event.target.value as 'en' | 'kh')}
@@ -440,16 +522,25 @@ export default function Topbar() {
             })}
             <div className="flex flex-col gap-3 pt-2 border-t border-border">
               {authStatus === 'authenticated' ? (
-                <div className="flex items-center justify-between gap-3">
-                  <span className="min-w-0 truncate text-xs text-muted-foreground">
-                    {session.user?.name ?? session.user?.email}
-                  </span>
+                <div className="rounded-xl border border-border bg-background p-3">
+                  <div className="flex items-center gap-3">
+                    {session.user?.image ? (
+                      <Image src={session.user.image} alt="" width={40} height={40} unoptimized className="h-10 w-10 rounded-full object-cover" />
+                    ) : (
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/15 text-sm font-semibold text-primary">{userInitial}</span>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-foreground">{userName}</p>
+                      {session.user?.email && session.user.name && <p className="truncate text-xs text-muted-foreground">{session.user.email}</p>}
+                      <p className="mt-0.5 text-[11px] text-primary">{locale === 'kh' ? 'បានចូលគណនី' : 'Signed in'}</p>
+                    </div>
+                  </div>
                   <button
                     type="button"
-                    className="btn-ghost px-4 py-2 rounded-md text-sm font-medium"
+                    className="btn-ghost mt-3 w-full justify-center rounded-md px-4 py-2 text-sm font-medium"
                     onClick={() => {
                       setMobileOpen(false);
-                      void signOut();
+                      void signOut({ callbackUrl: '/' });
                     }}
                   >
                     <LogOut size={14} />
@@ -481,16 +572,17 @@ export default function Topbar() {
                 <HandCoins size={14} />
                 {texts.support}
               </button>
-              <button
-                type="button"
-                className="btn-ghost w-full px-4 py-2 rounded-md text-left text-sm font-medium"
-                onClick={() => {
-                  toggleTheme();
-                  setMobileOpen(false);
-                }}
-              >
-                {texts.theme}: {theme === 'dark' ? texts.dark : texts.light}
-              </button>
+              <label className="flex items-center justify-between gap-3 rounded-md border border-border bg-background px-4 py-2 text-sm text-foreground">
+                <span>{texts.theme}</span>
+                <select
+                  value={theme}
+                  onChange={(event) => handleThemeChange(event.target.value as Theme)}
+                  className="bg-transparent text-sm text-foreground outline-none"
+                  aria-label={texts.theme}
+                >
+                  {THEMES.map((option) => <option key={option} value={option}>{texts[option]}</option>)}
+                </select>
+              </label>
               <label className="flex items-center justify-between gap-3 px-4 py-2 rounded-md border border-border bg-background text-sm text-foreground">
                 <span>{texts.language}</span>
                 <select

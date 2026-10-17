@@ -28,13 +28,24 @@ import UrlCodecPanel from './tools/UrlCodecPanel';
 import RegexPanel from './tools/RegexPanel';
 import TimestampPanel from './tools/TimestampPanel';
 import Base64ImagePanel from './tools/Base64ImagePanel';
-import JsonToTsPanel from './tools/JsonToTsPanel';
 import CurlPanel from './tools/CurlPanel';
 import KhqrBuilderPanel from './tools/KhqrBuilderPanel';
 import KhqrValidatorPanel from './tools/KhqrValidatorPanel';
 import QrReaderPanel from './tools/QrReaderPanel';
 import ImageCompressPanel from './tools/ImageCompressPanel';
 import GenericComingSoon from './tools/GenericComingSoon';
+import JsonToJavaPanel from './tools/JsonToJavaPanel';
+import JsonSchemaPanel from './tools/JsonSchemaPanel';
+import JsonPathPanel from './tools/JsonPathPanel';
+import DataConverterPanel from './tools/DataConverterPanel';
+import JsonToCodePanel from './tools/JsonToCodePanel';
+import CronBuilderPanel from './tools/CronBuilderPanel';
+import ConversionCalculatorPanel from './tools/ConversionCalculatorPanel';
+import TextToolkitPanel from './tools/TextToolkitPanel';
+import EncodingToolkitPanel from './tools/EncodingToolkitPanel';
+import ApiTesterPanel from './tools/ApiTesterPanel';
+import IpCidrPanel from './tools/IpCidrPanel';
+import CertificateInspectorPanel from './tools/CertificateInspectorPanel';
 
 const PANEL_MAP: Record<string, React.ComponentType<{ tool: Tool }>> = {
   'tool-json-formatter': JsonFormatterPanel,
@@ -57,7 +68,19 @@ const PANEL_MAP: Record<string, React.ComponentType<{ tool: Tool }>> = {
   'tool-timestamp': TimestampPanel,
   'tool-base64-image': Base64ImagePanel,
   'tool-image-compress': ImageCompressPanel,
-  'tool-json-to-ts': JsonToTsPanel,
+  'tool-json-to-ts': JsonToCodePanel,
+  'tool-json-to-java': JsonToJavaPanel,
+  'tool-json-to-dart': JsonToCodePanel,
+  'tool-cron-builder': CronBuilderPanel,
+  'tool-conversion-calculator': ConversionCalculatorPanel,
+  'tool-text-toolkit': TextToolkitPanel,
+  'tool-encoding-toolkit': EncodingToolkitPanel,
+  'tool-api-tester': ApiTesterPanel,
+  'tool-ip-cidr': IpCidrPanel,
+  'tool-certificate-inspector': CertificateInspectorPanel,
+  'tool-json-schema': JsonSchemaPanel,
+  'tool-jsonpath': JsonPathPanel,
+  'tool-data-converter': DataConverterPanel,
   'tool-curl-generator': CurlPanel,
   'tool-khqr-builder': KhqrBuilderPanel,
   'tool-khqr-validator': KhqrValidatorPanel,
