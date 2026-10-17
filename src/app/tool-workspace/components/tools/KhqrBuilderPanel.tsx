@@ -205,10 +205,6 @@ export default function KhqrBuilderPanel({ tool }: { tool: Tool }) {
             const radius = Math.floor(size / 2);
             ctx.save();
             ctx.beginPath();
-            ctx.arc(x + size / 2, y + size / 2, size / 2 + 7, 0, Math.PI * 2);
-            ctx.fillStyle = '#ffffff';
-            ctx.fill();
-            ctx.beginPath();
             ctx.arc(x + size / 2, y + size / 2, radius, 0, Math.PI * 2);
             ctx.clip();
             ctx.imageSmoothingEnabled = true;
