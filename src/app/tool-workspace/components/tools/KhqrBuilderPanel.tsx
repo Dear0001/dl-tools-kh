@@ -177,8 +177,8 @@ export default function KhqrBuilderPanel({ tool }: { tool: Tool }) {
       headerImage.src = headerImageDataUrl;
       await new Promise<void>((resolve, reject) => {
         headerImage.onload = () => {
-          const maxWidth = cardWidth - 56;
-          const maxHeight = 48;
+          const maxWidth = cardWidth * 0.55;
+          const maxHeight = 32;
           const scale = Math.min(maxWidth / headerImage.naturalWidth, maxHeight / headerImage.naturalHeight);
           const width = headerImage.naturalWidth * scale;
           const height = headerImage.naturalHeight * scale;
@@ -189,7 +189,7 @@ export default function KhqrBuilderPanel({ tool }: { tool: Tool }) {
       });
     } else {
       ctx.fillStyle = '#ffffff';
-      ctx.font = '600 34px Arial, sans-serif';
+      ctx.font = '600 30px Arial, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(headerText.slice(0, 24) || 'KHQR', cardWidth / 2, 38);
