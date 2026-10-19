@@ -1,10 +1,11 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Tool } from '@/data/tools';
 import PanelLayout from '../PanelLayout';
 import CodeEditor from '../CodeEditor';
 import CodeOutput from '../CodeOutput';
 import beautify from 'js-beautify';
+import { useDebouncedValue } from '../useDebouncedValue';
 
 const SAMPLE = `.container{display:flex;flex-direction:column;align-items:center;gap:16px;padding:24px;background-color:#0e0e10;border-radius:8px;}.title{font-size:24px;font-weight:700;color:#f0f0f5;margin-bottom:8px;}.btn{background:linear-gradient(135deg,#00d4aa,#7c6af7);color:#fff;border:none;border-radius:6px;padding:8px 16px;cursor:pointer;transition:all 150ms ease;}`;
 
@@ -15,6 +16,27 @@ export default function CssFormatterPanel({ tool }: { tool: Tool }) {
   const [output, setOutput] = useState('');
   const [status, setStatus] = useState<Status>('idle');
   const [indent, setIndent] = useState(2);
+  const debouncedInput = useDebouncedValue(input);
+
+  useEffect(() => {
+    if (input !== debouncedInput) {
+      setOutput('');
+      setStatus('idle');
+      return;
+    }
+    if (!debouncedInput.trim()) {
+      setOutput('');
+      setStatus('idle');
+      return;
+    }
+    try {
+      setOutput(beautify.css(debouncedInput, { indent_size: indent }));
+      setStatus('success');
+    } catch {
+      setOutput('');
+      setStatus('error');
+    }
+  }, [input, debouncedInput, indent]);
 
   const format = () => {
     try {

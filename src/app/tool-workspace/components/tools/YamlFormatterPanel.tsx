@@ -1,9 +1,10 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Tool } from '@/data/tools';
 import PanelLayout from '../PanelLayout';
 import CodeEditor from '../CodeEditor';
 import CodeOutput from '../CodeOutput';
+import { useDebouncedValue } from '../useDebouncedValue';
 
 const SAMPLE = `name: devtoolkit
 version: 1.0.0
@@ -30,6 +31,41 @@ export default function YamlFormatterPanel({ tool }: { tool: Tool }) {
   const [output, setOutput] = useState('');
   const [status, setStatus] = useState<Status>('idle');
   const [error, setError] = useState('');
+  const debouncedInput = useDebouncedValue(input);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (input !== debouncedInput) {
+      setOutput('');
+      setStatus('idle');
+      setError('');
+      return () => { cancelled = true; };
+    }
+    if (!debouncedInput.trim()) {
+      setOutput('');
+      setStatus('idle');
+      setError('');
+      return;
+    }
+    const formatLive = async () => {
+      try {
+        const yaml = await import('js-yaml');
+        const parsed = yaml.load(debouncedInput);
+        if (cancelled) return;
+        setOutput(yaml.dump(parsed, { indent: 2, lineWidth: 120 }));
+        setStatus('success');
+        setError('');
+      } catch (cause) {
+        if (cancelled) return;
+        const message = cause instanceof Error ? cause.message : 'YAML error';
+        setStatus('error');
+        setError(message.split('\n')[0]);
+        setOutput('');
+      }
+    };
+    void formatLive();
+    return () => { cancelled = true; };
+  }, [input, debouncedInput]);
 
   const validate = async () => {
     try {

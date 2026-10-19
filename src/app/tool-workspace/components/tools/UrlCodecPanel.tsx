@@ -1,8 +1,9 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Tool } from '@/data/tools';
 import { ArrowDown, ArrowUp } from 'lucide-react';
 import { toast } from 'sonner';
+import { useDebouncedValue } from '../useDebouncedValue';
 
 const SAMPLE_DECODED = 'https://api.devtoolkit.io/v2/search?query=json formatter&category=formatters&lang=en&sort=popular&page=1&limit=20&tags=json,format,validate';
 
@@ -10,10 +11,32 @@ export default function UrlCodecPanel({ tool }: { tool: Tool }) {
   const [decoded, setDecoded] = useState(SAMPLE_DECODED);
   const [encoded, setEncoded] = useState('');
   const [error, setError] = useState('');
+  const [activeSide, setActiveSide] = useState<'decoded' | 'encoded'>('decoded');
+  const debouncedDecoded = useDebouncedValue(decoded);
+  const debouncedEncoded = useDebouncedValue(encoded);
+
+  useEffect(() => {
+    if (activeSide !== 'decoded') return;
+    if (decoded !== debouncedDecoded) return;
+    setEncoded(encodeURIComponent(debouncedDecoded));
+    setError('');
+  }, [activeSide, decoded, debouncedDecoded]);
+
+  useEffect(() => {
+    if (activeSide !== 'encoded') return;
+    if (encoded !== debouncedEncoded) return;
+    try {
+      setDecoded(decodeURIComponent(debouncedEncoded));
+      setError('');
+    } catch {
+      setError('Decode error — invalid percent-encoded string');
+    }
+  }, [activeSide, encoded, debouncedEncoded]);
 
   const encode = () => {
     try {
       setEncoded(encodeURIComponent(decoded));
+      setActiveSide('decoded');
       setError('');
     } catch (e: unknown) {
       setError('Encode error');
@@ -23,6 +46,7 @@ export default function UrlCodecPanel({ tool }: { tool: Tool }) {
   const decode = () => {
     try {
       setDecoded(decodeURIComponent(encoded));
+      setActiveSide('encoded');
       setError('');
     } catch (e: unknown) {
       setError('Decode error — invalid percent-encoded string');
@@ -54,7 +78,7 @@ export default function UrlCodecPanel({ tool }: { tool: Tool }) {
           </div>
           <textarea
             value={decoded}
-            onChange={(e) => setDecoded(e.target.value)}
+            onChange={(e) => { setActiveSide('decoded'); setDecoded(e.target.value); setEncoded(''); setError(''); }}
             className="input-code w-full"
             rows={4}
             placeholder="https://example.com/path?query=value&other=hello world"
@@ -80,7 +104,7 @@ export default function UrlCodecPanel({ tool }: { tool: Tool }) {
           </div>
           <textarea
             value={encoded}
-            onChange={(e) => setEncoded(e.target.value)}
+            onChange={(e) => { setActiveSide('encoded'); setEncoded(e.target.value); setDecoded(''); setError(''); }}
             className="input-code w-full text-emerald-300"
             rows={4}
             placeholder="https%3A%2F%2Fexample.com%2Fpath%3Fquery%3Dvalue%26other%3Dhello%20world"

@@ -1,5 +1,5 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Tool } from '@/data/tools';
 import { CheckCircle2, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
@@ -7,6 +7,7 @@ import VisibleUnicodeText, { hasInvisibleUnicode } from '../VisibleUnicodeText';
 import EmvQrSummary from './EmvQrSummary';
 import { getEmvQrDetails, type EmvTlvTag } from './emvQr';
 import crc16 from './crc16';
+import { useDebouncedValue } from '../useDebouncedValue';
 
 function tlv(tag: string, value: string): string {
   return `${tag}${value.length.toString().padStart(2, '0')}${value}`;
@@ -50,13 +51,22 @@ export default function KhqrValidatorPanel({ tool }: { tool: Tool }) {
   const [currency, setCurrency] = useState('');
   const [validated, setValidated] = useState(false);
   const [validatedData, setValidatedData] = useState('');
+  const [validationError, setValidationError] = useState('');
+  const debouncedInput = useDebouncedValue(input);
 
-  const validate = () => {
+  const validate = (source = input, notify = false) => {
+    if (!source.trim()) {
+      setValidated(false);
+      setValidationError('Enter a KHQR / EMVCo string to validate.');
+      return;
+    }
     try {
-      const data = input.trim();
+      const data = source.trim();
       const details = getEmvQrDetails(data);
       if (details.crcValid === null) {
-        toast.error('CRC tag (63) not found in KHQR string');
+        setValidated(false);
+        setValidationError('CRC tag (63) not found in KHQR string.');
+        if (notify) toast.error('CRC tag (63) not found in KHQR string');
         return;
       }
       setCrcValid(details.crcValid);
@@ -72,10 +82,18 @@ export default function KhqrValidatorPanel({ tool }: { tool: Tool }) {
 
       setValidatedData(data);
       setValidated(true);
+      setValidationError('');
     } catch (e) {
-      toast.error('Failed to parse KHQR string — check format');
+      setValidated(false);
+      const message = e instanceof Error ? e.message : 'Failed to parse KHQR string — check format.';
+      setValidationError(message);
+      if (notify) toast.error(message);
     }
   };
+
+  useEffect(() => {
+    validate(debouncedInput);
+  }, [debouncedInput]);
 
   return (
     <div className="h-full overflow-auto scrollbar-thin p-6">
@@ -88,15 +106,17 @@ export default function KhqrValidatorPanel({ tool }: { tool: Tool }) {
             onChange={(e) => {
               setInput(e.target.value);
               setValidated(false);
+              setValidationError('');
             }}
             className="input-code w-full text-xs"
             rows={4}
             placeholder="Paste KHQR EMVCo string here… 000201010212…"
             spellCheck={false}
           />
-          <button className="btn-primary mt-3 text-xs" onClick={validate}>
+          <button className="btn-primary mt-3 text-xs" onClick={() => validate(input, true)}>
             Validate & Decode
           </button>
+          {validationError && <p className="mt-2 text-xs text-red-400" role="status">{validationError}</p>}
         </div>
 
         {/* Validation summary */}

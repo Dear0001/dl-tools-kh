@@ -1,10 +1,11 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Tool } from '@/data/tools';
 import PanelLayout from '../PanelLayout';
 import CodeEditor from '../CodeEditor';
 import CodeOutput from '../CodeOutput';
 import { format as sqlFormat } from 'sql-formatter';
+import { useDebouncedValue } from '../useDebouncedValue';
 
 const SAMPLE = `SELECT u.id,u.name,u.email,u.created_at,p.plan_name,p.price,COUNT(o.id) AS order_count,SUM(o.total_amount) AS lifetime_value FROM users u LEFT JOIN subscriptions s ON s.user_id=u.id LEFT JOIN plans p ON p.id=s.plan_id LEFT JOIN orders o ON o.user_id=u.id WHERE u.created_at>='2026-01-01' AND u.status='active' GROUP BY u.id,u.name,u.email,u.created_at,p.plan_name,p.price HAVING COUNT(o.id)>0 ORDER BY lifetime_value DESC LIMIT 100;`;
 
@@ -19,6 +20,36 @@ export default function SqlFormatterPanel({ tool }: { tool: Tool }) {
   const [indent, setIndent] = useState(2);
   const [uppercase, setUppercase] = useState(true);
   const [error, setError] = useState('');
+  const debouncedInput = useDebouncedValue(input);
+
+  useEffect(() => {
+    if (input !== debouncedInput) {
+      setOutput('');
+      setStatus('idle');
+      setError('');
+      return;
+    }
+    if (!debouncedInput.trim()) {
+      setOutput('');
+      setStatus('idle');
+      setError('');
+      return;
+    }
+    try {
+      setOutput(sqlFormat(debouncedInput, {
+        language: dialect,
+        tabWidth: indent,
+        keywordCase: uppercase ? 'upper' : 'lower',
+        linesBetweenQueries: 2,
+      }));
+      setStatus('success');
+      setError('');
+    } catch (cause) {
+      setStatus('error');
+      setError(cause instanceof Error ? cause.message : 'SQL format error');
+      setOutput('');
+    }
+  }, [input, debouncedInput, dialect, indent, uppercase]);
 
   const format = () => {
     try {

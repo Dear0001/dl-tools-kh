@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Tool } from '@/data/tools';
 import { AlertTriangle, CheckCircle2, Key } from 'lucide-react';
+import { useDebouncedValue } from '../useDebouncedValue';
 
 const SAMPLE_JWT = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c3ItMTIzNDUiLCJuYW1lIjoiU29waGVhIENoYW4iLCJlbWFpbCI6InNvcGhlYUBkZXZ0b29sa2l0LmlvIiwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzUzOTI4MDAwLCJleHAiOjE3NTM5MzE2MDAsImF1ZCI6ImRldnRvb2xraXQiLCJpc3MiOiJodHRwczovL2F1dGguZGV2dG9vbGtpdC5pbyJ9.signature_placeholder';
 
@@ -21,14 +22,22 @@ export default function JwtPanel({ tool }: { tool: Tool }) {
   const [signature, setSignature] = useState('');
   const [error, setError] = useState('');
   const [nowTs, setNowTs] = useState(0);
+  const debouncedToken = useDebouncedValue(token);
 
   useEffect(() => {
     setNowTs(Math.floor(Date.now() / 1000));
   }, []);
 
-  const decode = () => {
+  const decode = (source = token) => {
+    if (!source.trim()) {
+      setHeader(null);
+      setPayload(null);
+      setSignature('');
+      setError('');
+      return;
+    }
     try {
-      const parts = token.trim().split('.');
+      const parts = source.trim().split('.');
       if (parts.length !== 3) throw new Error('JWT must have exactly 3 parts separated by dots');
       const decodeB64 = (s: string) => {
         const padded = s + '=='.slice(0, (4 - s.length % 4) % 4);
@@ -46,6 +55,17 @@ export default function JwtPanel({ tool }: { tool: Tool }) {
       setSignature('');
     }
   };
+
+  useEffect(() => {
+    if (token !== debouncedToken) {
+      setHeader(null);
+      setPayload(null);
+      setSignature('');
+      setError('');
+      return;
+    }
+    decode(debouncedToken);
+  }, [token, debouncedToken]);
 
   const isExpired = payload?.exp ? payload.exp < nowTs : false;
   const expiresIn = payload?.exp ? payload.exp - nowTs : null;
@@ -80,7 +100,7 @@ export default function JwtPanel({ tool }: { tool: Tool }) {
           )}
         </div>
 
-        <button className="btn-primary mb-5" onClick={decode}>
+        <button className="btn-primary mb-5" onClick={() => decode()}>
           <Key size={13} />
           Decode JWT
         </button>

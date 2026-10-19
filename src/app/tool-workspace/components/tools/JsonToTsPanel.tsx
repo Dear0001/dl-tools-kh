@@ -1,9 +1,10 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Tool } from '@/data/tools';
 import PanelLayout from '../PanelLayout';
 import CodeEditor from '../CodeEditor';
 import CodeOutput from '../CodeOutput';
+import { useDebouncedValue } from '../useDebouncedValue';
 import JsonToTS from 'json-to-ts';
 
 const SAMPLE = `{
@@ -37,10 +38,11 @@ export default function JsonToTsPanel({ tool }: { tool: Tool }) {
   const [error, setError] = useState('');
   const [rootName, setRootName] = useState('RootObject');
   const [useInterface, setUseInterface] = useState(true);
+  const debouncedInput = useDebouncedValue(input);
 
-  const convert = () => {
+  const convert = (source = input) => {
     try {
-      const parsed = JSON.parse(input);
+      const parsed = JSON.parse(source);
       // Backend integration point: json-to-ts library
       const interfaces = JsonToTS(parsed, { rootName });
       const result = useInterface
@@ -56,6 +58,16 @@ export default function JsonToTsPanel({ tool }: { tool: Tool }) {
       setOutput('');
     }
   };
+
+  useEffect(() => {
+    if (input !== debouncedInput || !debouncedInput.trim()) {
+      setOutput('');
+      setError('');
+      setStatus('idle');
+      return;
+    }
+    convert(debouncedInput);
+  }, [input, debouncedInput, rootName, useInterface]);
 
   return (
     <div className="h-full flex flex-col">
@@ -74,7 +86,7 @@ export default function JsonToTsPanel({ tool }: { tool: Tool }) {
           <span className="text-xs text-muted-foreground">Use interface (vs type)</span>
         </label>
         <div className="ml-auto">
-          <button className="btn-primary text-xs" onClick={convert}>Generate TypeScript</button>
+          <button className="btn-primary text-xs" onClick={() => convert()}>Generate TypeScript</button>
         </div>
       </div>
       <div className="flex-1 overflow-hidden p-4">

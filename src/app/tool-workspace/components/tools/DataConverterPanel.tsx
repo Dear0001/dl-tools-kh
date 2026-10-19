@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Tool } from '@/data/tools';
 import PanelLayout from '../PanelLayout';
 import CodeEditor from '../CodeEditor';
 import CodeOutput from '../CodeOutput';
+import { useDebouncedValue } from '../useDebouncedValue';
 
 type Format = 'json' | 'yaml' | 'csv' | 'xml';
 
@@ -99,37 +100,59 @@ export default function DataConverterPanel({ tool: _tool }: { tool: Tool }) {
   const [input, setInput] = useState(SAMPLE);
   const [output, setOutput] = useState('');
   const [error, setError] = useState('');
+  const conversionId = useRef(0);
+  const debouncedInput = useDebouncedValue(input);
 
-  const convert = async () => {
+  const convert = async (source = input, sourceFormat = inputFormat, targetFormat = outputFormat) => {
+    const id = ++conversionId.current;
+    if (!source.trim()) {
+      setOutput('');
+      setError('');
+      return;
+    }
     try {
       let value: unknown;
-      if (inputFormat === 'json') value = JSON.parse(input);
-      else if (inputFormat === 'yaml') value = (await import('js-yaml')).load(input);
-      else if (inputFormat === 'csv') value = csvToJson(input);
+      if (sourceFormat === 'json') value = JSON.parse(source);
+      else if (sourceFormat === 'yaml') value = (await import('js-yaml')).load(source);
+      else if (sourceFormat === 'csv') value = csvToJson(source);
       else {
-        const document = new DOMParser().parseFromString(input, 'application/xml');
+        const document = new DOMParser().parseFromString(source, 'application/xml');
         const parseError = document.querySelector('parsererror');
         if (parseError) throw new Error('Invalid XML: check the document syntax.');
         value = fromXml(document.documentElement);
       }
 
-      if (outputFormat === 'json') setOutput(JSON.stringify(value, null, 2));
-      else if (outputFormat === 'yaml') setOutput((await import('js-yaml')).dump(value, { noRefs: true, lineWidth: 120 }));
-      else if (outputFormat === 'csv') setOutput(toCsv(value));
-      else setOutput(`<?xml version="1.0" encoding="UTF-8"?>\n${toXml(value)}`);
+      let converted: string;
+      if (targetFormat === 'json') converted = JSON.stringify(value, null, 2);
+      else if (targetFormat === 'yaml') converted = (await import('js-yaml')).dump(value, { noRefs: true, lineWidth: 120 });
+      else if (targetFormat === 'csv') converted = toCsv(value);
+      else converted = `<?xml version="1.0" encoding="UTF-8"?>\n${toXml(value)}`;
+      if (id !== conversionId.current) return;
+      setOutput(converted);
       setError('');
     } catch (cause) {
+      if (id !== conversionId.current) return;
       setOutput('');
       setError(cause instanceof Error ? cause.message : 'Could not convert this data.');
     }
   };
+
+  useEffect(() => {
+    if (input !== debouncedInput) {
+      setOutput('');
+      setError('');
+      return () => { conversionId.current += 1; };
+    }
+    void convert(debouncedInput, inputFormat, outputFormat);
+    return () => { conversionId.current += 1; };
+  }, [input, debouncedInput, inputFormat, outputFormat]);
 
   return <div className="h-full flex flex-col">
     <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border bg-secondary/30 flex-wrap">
       <label className="text-xs text-muted-foreground">From <select className="select-input ml-1" value={inputFormat} onChange={(event) => setInputFormat(event.target.value as Format)}>{['json', 'yaml', 'csv', 'xml'].map((format) => <option key={format}>{format}</option>)}</select></label>
       <span className="text-muted-foreground">→</span>
       <label className="text-xs text-muted-foreground">To <select className="select-input ml-1" value={outputFormat} onChange={(event) => setOutputFormat(event.target.value as Format)}>{['json', 'yaml', 'csv', 'xml'].map((format) => <option key={format}>{format}</option>)}</select></label>
-      <button className="btn-primary text-xs ml-auto" onClick={convert}>Convert</button>
+      <button className="btn-primary text-xs ml-auto" onClick={() => void convert()}>Convert</button>
     </div>
     <div className="flex-1 min-h-0 p-4"><PanelLayout
       inputPanel={<CodeEditor value={input} onChange={setInput} minHeight="100%" placeholder="Paste JSON, YAML, CSV, or XML…" />}

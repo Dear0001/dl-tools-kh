@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Ajv from 'ajv';
 import type { Tool } from '@/data/tools';
 import CodeEditor from '../CodeEditor';
+import { useDebouncedValue } from '../useDebouncedValue';
 
 const SAMPLE_DATA = `{"user":{"name":"Dara","age":29},"active":true}`;
 const SAMPLE_SCHEMA = `{
@@ -21,11 +22,18 @@ export default function JsonSchemaPanel({ tool: _tool }: { tool: Tool }) {
   const [schema, setSchema] = useState(SAMPLE_SCHEMA);
   const [result, setResult] = useState('');
   const [error, setError] = useState('');
+  const debouncedData = useDebouncedValue(data);
+  const debouncedSchema = useDebouncedValue(schema);
 
-  const validate = () => {
+  const validate = (dataSource = data, schemaSource = schema) => {
+    if (!dataSource.trim() || !schemaSource.trim()) {
+      setResult('');
+      setError('Enter both JSON data and a JSON Schema.');
+      return;
+    }
     try {
-      const parsedSchema = JSON.parse(schema);
-      const parsedData = JSON.parse(data);
+      const parsedSchema = JSON.parse(schemaSource);
+      const parsedData = JSON.parse(dataSource);
       const ajv = new Ajv({ allErrors: true, jsonPointers: true, schemaId: 'auto' });
       const valid = ajv.validate(parsedSchema, parsedData);
       if (valid) {
@@ -42,10 +50,24 @@ export default function JsonSchemaPanel({ tool: _tool }: { tool: Tool }) {
     }
   };
 
+  useEffect(() => {
+    if (data !== debouncedData || schema !== debouncedSchema) {
+      setResult('');
+      setError('');
+      return;
+    }
+    if (!debouncedData.trim() && !debouncedSchema.trim()) {
+      setResult('');
+      setError('');
+      return;
+    }
+    validate(debouncedData, debouncedSchema);
+  }, [data, schema, debouncedData, debouncedSchema]);
+
   return <div className="h-full flex flex-col">
     <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-secondary/30">
       <span className="text-xs text-muted-foreground">JSON Schema draft-07</span>
-      <button className="btn-primary text-xs" onClick={validate}>Validate JSON</button>
+      <button className="btn-primary text-xs" onClick={() => validate()}>Validate JSON</button>
     </div>
     <div className="flex-1 min-h-0 grid grid-rows-2 gap-3 p-4">
       <section className="flex flex-col min-h-0"><label className="text-xs text-muted-foreground mb-1">JSON data</label><div className="flex-1 min-h-0 border border-border rounded-lg bg-input"><CodeEditor value={data} onChange={setData} minHeight="100%" placeholder="JSON data…" /></div></section>

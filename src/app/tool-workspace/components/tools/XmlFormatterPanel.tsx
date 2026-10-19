@@ -1,9 +1,10 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Tool } from '@/data/tools';
 import PanelLayout from '../PanelLayout';
 import CodeEditor from '../CodeEditor';
 import CodeOutput from '../CodeOutput';
+import { useDebouncedValue } from '../useDebouncedValue';
 
 const SAMPLE = `<?xml version="1.0" encoding="UTF-8"?><catalog><book id="bk101"><author>Gambardella, Matthew</author><title>XML Developer's Guide</title><genre>Computer</genre><price>44.95</price><publish_date>2000-10-01</publish_date></book><book id="bk102"><author>Ralls, Kim</author><title>Midnight Rain</title><genre>Fantasy</genre><price>5.95</price><publish_date>2000-12-16</publish_date></book></catalog>`;
 
@@ -36,6 +37,34 @@ export default function XmlFormatterPanel({ tool }: { tool: Tool }) {
   const [status, setStatus] = useState<Status>('idle');
   const [indent, setIndent] = useState(2);
   const [error, setError] = useState('');
+  const debouncedInput = useDebouncedValue(input);
+
+  useEffect(() => {
+    if (input !== debouncedInput) {
+      setOutput('');
+      setStatus('idle');
+      setError('');
+      return;
+    }
+    if (!debouncedInput.trim()) {
+      setOutput('');
+      setStatus('idle');
+      setError('');
+      return;
+    }
+    try {
+      const doc = new DOMParser().parseFromString(debouncedInput, 'text/xml');
+      const parseError = doc.querySelector('parsererror');
+      if (parseError) throw new Error(parseError.textContent || 'XML parse error');
+      setOutput(formatXml(debouncedInput, indent));
+      setStatus('success');
+      setError('');
+    } catch (cause) {
+      setStatus('error');
+      setError((cause instanceof Error ? cause.message : 'XML error').split('\n')[0].slice(0, 80));
+      setOutput('');
+    }
+  }, [input, debouncedInput, indent]);
 
   const format = () => {
     try {

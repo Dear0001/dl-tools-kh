@@ -6,6 +6,7 @@ import { Download, Copy } from 'lucide-react';
 import { toast } from 'sonner';
 import QRCode from 'qrcode';
 import crc16 from './crc16';
+import { useDebouncedValue } from '../useDebouncedValue';
 
 function tlv(tag: string, value: string): string {
   const len = value.length.toString().padStart(2, '0');
@@ -90,6 +91,7 @@ function buildKhqr(data: any): string {
 
 export default function KhqrBuilderPanel({ tool }: { tool: Tool }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const renderRequestRef = useRef(0);
   const [khqrString, setKhqrString] = useState('');
   const [generated, setGenerated] = useState(false);
   const [customString, setCustomString] = useState('');
@@ -103,32 +105,21 @@ export default function KhqrBuilderPanel({ tool }: { tool: Tool }) {
   const [headerImageDataUrl, setHeaderImageDataUrl] = useState<string | null>(null);
   const [headerImageName, setHeaderImageName] = useState('');
   const [headerColor, setHeaderColor] = useState('#e31b23');
+  const debouncedCustomString = useDebouncedValue(customString, 200);
 
   // no external form state - only raw string input
 
-  const generate = async () => {
-    try {
-      const content = customString?.trim();
-      if (!content) {
-        toast.error('Please enter a string to encode');
-        return;
-      }
-      setKhqrString(content);
-      await renderQr(content);
-      setGenerated(true);
-      toast.success('KHQR generated successfully');
-    } catch (e) {
-      toast.error('Failed to generate KHQR — check input values');
-    }
-  };
-
   // Render the card, QR, optional custom header artwork, and center logo.
   const renderQr = async (content: string) => {
-    if (!canvasRef.current) return;
-    const canvas = canvasRef.current;
+    const outputCanvas = canvasRef.current;
+    if (!outputCanvas) return false;
+    const requestId = ++renderRequestRef.current;
+    const canvas = document.createElement('canvas');
     const cardWidth = 400;
     const cardHeight = 560;
     const qrSize = 300;
+    canvas.width = cardWidth;
+    canvas.height = cardHeight;
     const qrCanvas = document.createElement('canvas');
     const opts: any = {
       width: qrSize,
@@ -138,10 +129,9 @@ export default function KhqrBuilderPanel({ tool }: { tool: Tool }) {
     };
     await QRCode.toCanvas(qrCanvas, content, opts);
 
-    canvas.width = cardWidth;
-    canvas.height = cardHeight;
+    if (requestId !== renderRequestRef.current) return false;
     const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    if (!ctx) return false;
 
     ctx.save();
     ctx.beginPath();
@@ -252,15 +242,45 @@ export default function KhqrBuilderPanel({ tool }: { tool: Tool }) {
         img.onerror = rej;
       });
     }
+    if (requestId !== renderRequestRef.current) return false;
+    const outputContext = outputCanvas.getContext('2d');
+    if (!outputContext) return false;
+    outputCanvas.width = cardWidth;
+    outputCanvas.height = cardHeight;
+    outputContext.clearRect(0, 0, cardWidth, cardHeight);
+    outputContext.drawImage(canvas, 0, 0);
+    return true;
   };
 
-  // re-render QR when appearance or logo changes (if a string already exists)
+  // Update the QR after a short pause; leave the source text exactly as entered.
   useEffect(() => {
-    if (khqrString) {
-      renderQr(khqrString).catch(() => {});
+    const content = debouncedCustomString;
+    if (customString !== debouncedCustomString) {
+      setKhqrString('');
+      setGenerated(false);
+      return () => { renderRequestRef.current += 1; };
     }
+    if (!content.trim()) {
+      renderRequestRef.current += 1;
+      setKhqrString('');
+      setGenerated(false);
+      const canvas = canvasRef.current;
+      const context = canvas?.getContext('2d');
+      if (canvas && context) context.clearRect(0, 0, canvas.width, canvas.height);
+      return;
+    }
+    let cancelled = false;
+    setKhqrString(content);
+    renderQr(content)
+      .then((rendered) => { if (!cancelled) setGenerated(rendered); })
+      .catch(() => { if (!cancelled) setGenerated(false); });
+    return () => {
+      cancelled = true;
+      renderRequestRef.current += 1;
+    };
+    // renderQr reads only the appearance settings listed here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fgColor, bgColor, logoDataUrl, logoSize, headerText, headerImageDataUrl, headerColor]);
+  }, [customString, debouncedCustomString, fgColor, bgColor, logoDataUrl, logoSize, headerText, headerImageDataUrl, headerColor]);
 
   // File / drag-drop handlers for logo image
   const handleFile = (file: File | null) => {
@@ -336,13 +356,20 @@ export default function KhqrBuilderPanel({ tool }: { tool: Tool }) {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
           {/* Form */}
           <div className="lg:col-span-2">
-            <form onSubmit={(e) => { e.preventDefault(); generate(); }} className="flex flex-col gap-4">
+            <div className="flex flex-col gap-4">
               <div className="bg-card border border-border rounded-xl p-5">
                 <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Encode string</h4>
                 <label className="text-xs text-muted-foreground">Raw string</label>
                 <textarea
                   value={customString}
-                  onChange={(e) => setCustomString(e.target.value)}
+                  onChange={(e) => {
+                    renderRequestRef.current += 1;
+                    setGenerated(false);
+                    setCustomString(e.target.value);
+                    const canvas = canvasRef.current;
+                    const context = canvas?.getContext('2d');
+                    if (canvas && context) context.clearRect(0, 0, canvas.width, canvas.height);
+                  }}
                   placeholder="Enter the string to encode as QR code"
                   className="input-code w-full min-h-[120px] text-xs"
                 />
@@ -450,10 +477,10 @@ export default function KhqrBuilderPanel({ tool }: { tool: Tool }) {
                 </div>
               </div>
 
-              <div>
-                <button type="submit" className="btn-primary w-fit">Generate KHQR</button>
-              </div>
-            </form>
+              <p className="text-xs text-muted-foreground" aria-live="polite">
+                {generated ? 'QR code updates automatically as you type.' : 'Enter content to generate a QR preview automatically.'}
+              </p>
+            </div>
           </div>
 
           {/* QR Preview */}

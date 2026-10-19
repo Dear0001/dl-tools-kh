@@ -1,10 +1,11 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Check, Copy, Eye, FileCode2, WandSparkles } from 'lucide-react';
 import { marked } from 'marked';
 import { toast } from 'sonner';
 import type { Tool } from '@/data/tools';
+import { useDebouncedValue } from '../useDebouncedValue';
 
 const SAMPLE = `# Markdown preview
 
@@ -52,7 +53,34 @@ export default function MarkdownFormatterPanel({ tool: _tool }: { tool: Tool }) 
   const [formatted, setFormatted] = useState(SAMPLE);
   const [preview, setPreview] = useState(true);
   const [busy, setBusy] = useState(false);
+  const debouncedInput = useDebouncedValue(input, 300);
   const safeHtml = useMemo(() => safeMarkdownHtml(preview ? formatted : ''), [formatted, preview]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (input !== debouncedInput) {
+      setFormatted(input);
+      return () => { cancelled = true; };
+    }
+    if (!debouncedInput.trim()) {
+      setFormatted('');
+      return;
+    }
+    const formatLive = async () => {
+      try {
+        const [{ format: prettierFormat }, markdownPlugin] = await Promise.all([
+          import('prettier/standalone'),
+          import('prettier/plugins/markdown'),
+        ]);
+        const result = await prettierFormat(debouncedInput, { parser: 'markdown', plugins: [markdownPlugin], proseWrap: 'preserve' });
+        if (!cancelled) setFormatted(result);
+      } catch {
+        if (!cancelled) setFormatted(debouncedInput);
+      }
+    };
+    void formatLive();
+    return () => { cancelled = true; };
+  }, [input, debouncedInput]);
 
   const format = async () => {
     setBusy(true);
@@ -62,7 +90,6 @@ export default function MarkdownFormatterPanel({ tool: _tool }: { tool: Tool }) 
         import('prettier/plugins/markdown'),
       ]);
       const result = await prettierFormat(input, { parser: 'markdown', plugins: [markdownPlugin], proseWrap: 'preserve' });
-      setInput(result);
       setFormatted(result);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Could not format Markdown.');

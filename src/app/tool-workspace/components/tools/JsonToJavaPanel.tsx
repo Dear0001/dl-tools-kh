@@ -1,9 +1,10 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Tool } from '@/data/tools';
 import PanelLayout from '../PanelLayout';
 import CodeEditor from '../CodeEditor';
 import CodeOutput from '../CodeOutput';
+import { useDebouncedValue } from '../useDebouncedValue';
 
 const SAMPLE = `{
   "user": {
@@ -52,11 +53,12 @@ export default function JsonToJavaPanel({ tool }: { tool: Tool }) {
   const [lang, setLang] = useState<Lang>('java');
   const [rootName, setRootName] = useState('RootModel');
   const [error, setError] = useState('');
+  const debouncedInput = useDebouncedValue(input);
 
-  const generate = () => {
+  const generate = (source = input, language = lang, root = rootName) => {
     setError('');
     try {
-      const parsed = JSON.parse(input);
+      const parsed = JSON.parse(source);
       const models = new Map<string, string>();
 
       function gen(name: string, value: any) {
@@ -70,7 +72,7 @@ export default function JsonToJavaPanel({ tool }: { tool: Tool }) {
 
         if (typeof value !== 'object' || value === null) {
           // primitive
-          return mapType(lang, inferType(value));
+          return mapType(language, inferType(value));
         }
 
         // object
@@ -82,7 +84,7 @@ export default function JsonToJavaPanel({ tool }: { tool: Tool }) {
           if (t.kind === 'object') {
             const childName = toPascal(k);
             const childClass = gen(childName, t.value);
-            fields.push(renderField(lang, id, childClass, k));
+            fields.push(renderField(language, id, childClass, k));
           } else if (t.kind === 'array') {
             // determine array item type
             let itemType = 'Object';
@@ -93,22 +95,22 @@ export default function JsonToJavaPanel({ tool }: { tool: Tool }) {
                 const childName = toPascal(k + 'Item');
                 itemType = gen(childName, first);
               } else {
-                itemType = mapType(lang, it);
+                itemType = mapType(language, it);
               }
             }
-            fields.push(renderArrayField(lang, id, itemType, k));
+            fields.push(renderArrayField(language, id, itemType, k));
           } else {
-            fields.push(renderField(lang, id, mapType(lang, t), k));
+            fields.push(renderField(language, id, mapType(language, t), k));
           }
         }
 
-        const code = renderClass(lang, className, fields);
+        const code = renderClass(language, className, fields);
         models.set(className, code);
         return className;
       }
 
       // start generation
-      gen(rootName, parsed);
+      gen(root, parsed);
 
       // join models in reverse insertion order so dependencies appear first
       const result = Array.from(models.values()).reverse().join('\n\n');
@@ -118,6 +120,11 @@ export default function JsonToJavaPanel({ tool }: { tool: Tool }) {
       setOutput('');
     }
   };
+
+  useEffect(() => {
+    if (input !== debouncedInput || !debouncedInput.trim()) { setOutput(''); setError(''); return; }
+    generate(debouncedInput, lang, rootName);
+  }, [input, debouncedInput, lang, rootName]);
 
   return (
     <div className="h-full flex flex-col">
@@ -135,7 +142,7 @@ export default function JsonToJavaPanel({ tool }: { tool: Tool }) {
           </select>
         </div>
         <div className="ml-auto">
-          <button className="btn-primary text-xs" onClick={generate}>Generate Models</button>
+          <button className="btn-primary text-xs" onClick={() => generate()}>Generate Models</button>
         </div>
       </div>
 

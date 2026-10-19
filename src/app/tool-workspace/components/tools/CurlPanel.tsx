@@ -1,5 +1,5 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Tool } from '@/data/tools';
 import { Plus, Trash2, Copy } from 'lucide-react';
 import { useForm, useFieldArray } from 'react-hook-form';
@@ -30,7 +30,7 @@ interface FormValues {
 export default function CurlPanel({ tool }: { tool: Tool }) {
   const [output, setCurl] = useState('');
 
-  const { register, control, watch, handleSubmit } = useForm<FormValues>({
+  const { register, control, watch } = useForm<FormValues>({
     defaultValues: {
       method: 'GET',
       url: 'https://api.devtoolkit.io/v1/tools',
@@ -52,7 +52,9 @@ export default function CurlPanel({ tool }: { tool: Tool }) {
   const { fields, append, remove } = useFieldArray({ control, name: 'headers' });
   const authType = watch('authType');
   const method = watch('method');
+  const watchedFormKey = JSON.stringify(watch());
 
+  const shellQuote = (value: string) => `'${value.replace(/'/g, `'\\''`)}'`;
   const generate = (data: FormValues) => {
     const parts: string[] = ['curl'];
     if (data.verbose) parts.push('-v');
@@ -61,27 +63,34 @@ export default function CurlPanel({ tool }: { tool: Tool }) {
 
     // Auth
     if (data.authType === 'bearer') {
-      parts.push(`-H "Authorization: Bearer ${data.authValue}"`);
+      parts.push(`-H ${shellQuote(`Authorization: Bearer ${data.authValue}`)}`);
     } else if (data.authType === 'basic') {
-      parts.push(`-u "${data.authUser}:${data.authPassword}"`);
+      parts.push(`-u ${shellQuote(`${data.authUser}:${data.authPassword}`)}`);
     } else if (data.authType === 'apikey') {
-      parts.push(`-H "${data.apiKeyHeader}: ${data.authValue}"`);
+      parts.push(`-H ${shellQuote(`${data.apiKeyHeader}: ${data.authValue}`)}`);
     }
 
     // Headers
     data.headers.filter((h) => h.enabled && h.key).forEach((h) => {
-      parts.push(`-H "${h.key}: ${h.value}"`);
+      parts.push(`-H ${shellQuote(`${h.key}: ${h.value}`)}`);
     });
 
     // Body
     if (data.body && ['POST', 'PUT', 'PATCH'].includes(data.method)) {
-      parts.push(`-d '${data.body}'`);
+      parts.push(`-d ${shellQuote(data.body)}`);
     }
 
-    parts.push(`"${data.url}"`);
+    parts.push(shellQuote(data.url));
 
     setCurl(parts.join(' \\\n  '));
   };
+
+  useEffect(() => {
+    try { generate(JSON.parse(watchedFormKey) as FormValues); }
+    catch { setCurl(''); }
+    // watchedFormKey changes only when a form value changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchedFormKey]);
 
   const copy = async () => {
     if (!output) return;
@@ -92,7 +101,7 @@ export default function CurlPanel({ tool }: { tool: Tool }) {
   return (
     <div className="h-full overflow-auto scrollbar-thin p-6">
       <div className="max-w-3xl mx-auto">
-        <form onSubmit={handleSubmit(generate)} className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4">
           {/* Method + URL */}
           <div className="bg-card border border-border rounded-xl p-5">
             <div className="flex gap-2">
@@ -193,8 +202,8 @@ export default function CurlPanel({ tool }: { tool: Tool }) {
             </div>
           </div>
 
-          <button type="submit" className="btn-primary w-fit">Generate cURL Command</button>
-        </form>
+          <p className="text-xs text-muted-foreground" aria-live="polite">The cURL command updates automatically as you edit the request.</p>
+        </div>
 
         {/* Output */}
         {output && (

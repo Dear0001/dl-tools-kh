@@ -1,9 +1,10 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Tool } from '@/data/tools';
 import { Copy, CheckCircle2, Hash } from 'lucide-react';
 import { toast } from 'sonner';
 import CryptoJS from 'crypto-js';
+import { useDebouncedValue } from '../useDebouncedValue';
 
 type Algorithm = 'MD5' | 'SHA-1' | 'SHA-256' | 'SHA-512';
 
@@ -16,30 +17,31 @@ export default function HashPanel({ tool }: { tool: Tool }) {
   const [uppercase, setUppercase] = useState(false);
   const [hmacKey, setHmacKey] = useState('');
   const [useHmac, setUseHmac] = useState(false);
+  const debouncedInput = useDebouncedValue(input, 180);
 
-  const compute = () => {
-    if (!input.trim()) return;
+  const compute = (source = input, secret = hmacKey, hmac = useHmac, upper = uppercase) => {
+    if (!source) { setResults({} as Record<Algorithm, string>); return; }
     // Backend integration point: crypto-js hashing
     const compute = (algo: Algorithm): string => {
       let result: string;
-      if (useHmac && hmacKey) {
+      if (hmac) {
         switch (algo) {
-          case 'MD5': result = CryptoJS.HmacMD5(input, hmacKey).toString(); break;
-          case 'SHA-1': result = CryptoJS.HmacSHA1(input, hmacKey).toString(); break;
-          case 'SHA-256': result = CryptoJS.HmacSHA256(input, hmacKey).toString(); break;
-          case 'SHA-512': result = CryptoJS.HmacSHA512(input, hmacKey).toString(); break;
+          case 'MD5': result = CryptoJS.HmacMD5(source, secret).toString(); break;
+          case 'SHA-1': result = CryptoJS.HmacSHA1(source, secret).toString(); break;
+          case 'SHA-256': result = CryptoJS.HmacSHA256(source, secret).toString(); break;
+          case 'SHA-512': result = CryptoJS.HmacSHA512(source, secret).toString(); break;
           default: result = '';
         }
       } else {
         switch (algo) {
-          case 'MD5': result = CryptoJS.MD5(input).toString(); break;
-          case 'SHA-1': result = CryptoJS.SHA1(input).toString(); break;
-          case 'SHA-256': result = CryptoJS.SHA256(input).toString(); break;
-          case 'SHA-512': result = CryptoJS.SHA512(input).toString(); break;
+          case 'MD5': result = CryptoJS.MD5(source).toString(); break;
+          case 'SHA-1': result = CryptoJS.SHA1(source).toString(); break;
+          case 'SHA-256': result = CryptoJS.SHA256(source).toString(); break;
+          case 'SHA-512': result = CryptoJS.SHA512(source).toString(); break;
           default: result = '';
         }
       }
-      return uppercase ? result.toUpperCase() : result;
+      return upper ? result.toUpperCase() : result;
     };
 
     const newResults = {} as Record<Algorithm, string>;
@@ -48,6 +50,11 @@ export default function HashPanel({ tool }: { tool: Tool }) {
     }
     setResults(newResults);
   };
+
+  useEffect(() => {
+    if (input !== debouncedInput) { setResults({} as Record<Algorithm, string>); return; }
+    compute(debouncedInput, hmacKey, useHmac, uppercase);
+  }, [input, debouncedInput, hmacKey, useHmac, uppercase]);
 
   const copyHash = async (algo: Algorithm, hash: string) => {
     await navigator.clipboard.writeText(hash);
@@ -94,7 +101,7 @@ export default function HashPanel({ tool }: { tool: Tool }) {
           </div>
         </div>
 
-        <button className="btn-primary mb-5 w-full justify-center" onClick={compute}>
+        <button className="btn-primary mb-5 w-full justify-center" onClick={() => compute()}>
           <Hash size={14} />
           Compute Hashes
         </button>

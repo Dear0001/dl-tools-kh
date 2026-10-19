@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Tool } from '@/data/tools';
 import { RefreshCw, Copy } from 'lucide-react';
 import { toast } from 'sonner';
@@ -25,6 +25,7 @@ export default function TimestampPanel({ tool }: { tool: Tool }) {
   const [tz, setTz] = useState('UTC');
   const [nowTs, setNowTs] = useState('');
   const [results, setResults] = useState<{ label: string; value: string }[]>([]);
+  const activeInput = useRef<'timestamp' | 'date'>('timestamp');
 
   useEffect(() => {
     const ts = Math.floor(Date.now() / 1000);
@@ -32,11 +33,12 @@ export default function TimestampPanel({ tool }: { tool: Tool }) {
     setTsInput(String(ts));
   }, []);
 
-  const convertFromTs = () => {
-    const ts = parseInt(tsInput, 10);
-    if (isNaN(ts)) return;
-    const ms = tsInput.length >= 13 ? ts : ts * 1000;
+  const convertFromTs = (source = tsInput) => {
+    if (!/^-?\d+$/.test(source.trim())) { setResults([]); return; }
+    const ts = Number(source);
+    const ms = source.trim().replace('-', '').length >= 13 ? ts : ts * 1000;
     const d = new Date(ms);
+    if (!Number.isFinite(ms) || Number.isNaN(d.getTime())) { setResults([]); return; }
     const fmt = (locale: string, options: Intl.DateTimeFormatOptions) =>
       new Intl.DateTimeFormat(locale, { ...options, timeZone: tz }).format(d);
 
@@ -53,13 +55,19 @@ export default function TimestampPanel({ tool }: { tool: Tool }) {
     ]);
   };
 
-  const convertFromDate = () => {
-    if (!dateInput) return;
-    const d = new Date(dateInput);
-    if (isNaN(d.getTime())) return;
-    setTsInput(String(Math.floor(d.getTime() / 1000)));
-    convertFromTs();
+  const convertFromDate = (source = dateInput) => {
+    if (!source) { setResults([]); return; }
+    const d = new Date(source);
+    if (isNaN(d.getTime())) { setResults([]); return; }
+    const timestamp = String(Math.floor(d.getTime() / 1000));
+    setTsInput(timestamp);
+    convertFromTs(timestamp);
   };
+
+  useEffect(() => {
+    if (activeInput.current === 'date') convertFromDate();
+    else convertFromTs();
+  }, [tsInput, dateInput, tz]);
 
   const getRelative = (d: Date): string => {
     const diff = Date.now() - d.getTime();
@@ -78,6 +86,7 @@ export default function TimestampPanel({ tool }: { tool: Tool }) {
 
   const useNow = () => {
     const ts = Math.floor(Date.now() / 1000);
+    activeInput.current = 'timestamp';
     setNowTs(String(ts));
     setTsInput(String(ts));
   };
@@ -101,11 +110,11 @@ export default function TimestampPanel({ tool }: { tool: Tool }) {
             <input
               type="text"
               value={tsInput}
-              onChange={(e) => setTsInput(e.target.value)}
+              onChange={(e) => { activeInput.current = 'timestamp'; setTsInput(e.target.value); }}
               className="input-code w-full py-2 mb-3"
               placeholder="1753928000"
             />
-            <button className="btn-primary text-xs w-full justify-center" onClick={convertFromTs}>
+            <button className="btn-primary text-xs w-full justify-center" onClick={() => { activeInput.current = 'timestamp'; convertFromTs(); }}>
               Convert Timestamp →
             </button>
           </div>
@@ -115,10 +124,10 @@ export default function TimestampPanel({ tool }: { tool: Tool }) {
             <input
               type="datetime-local"
               value={dateInput}
-              onChange={(e) => setDateInput(e.target.value)}
+              onChange={(e) => { activeInput.current = 'date'; setDateInput(e.target.value); }}
               className="input-code w-full py-2 mb-3"
             />
-            <button className="btn-ghost text-xs w-full justify-center" onClick={convertFromDate}>
+            <button className="btn-ghost text-xs w-full justify-center" onClick={() => { activeInput.current = 'date'; convertFromDate(); }}>
               ← Convert Date
             </button>
           </div>

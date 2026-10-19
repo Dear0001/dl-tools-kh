@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Tool } from '@/data/tools';
 import CodeEditor from '../CodeEditor';
+import { useDebouncedValue } from '../useDebouncedValue';
 
 const SAMPLE = `{
   "users": [
@@ -101,10 +102,17 @@ export default function JsonPathPanel({ tool: _tool }: { tool: Tool }) {
   const [expression, setExpression] = useState('$.users[*].name');
   const [result, setResult] = useState('');
   const [error, setError] = useState('');
+  const debouncedJson = useDebouncedValue(json);
+  const debouncedExpression = useDebouncedValue(expression);
 
-  const run = () => {
+  const run = (jsonSource = json, expressionSource = expression) => {
+    if (!jsonSource.trim() || !expressionSource.trim()) {
+      setResult('');
+      setError('Enter a JSON document and JSONPath expression.');
+      return;
+    }
     try {
-      const matches = queryJsonPath(JSON.parse(json), expression);
+      const matches = queryJsonPath(JSON.parse(jsonSource), expressionSource);
       setResult(JSON.stringify(matches, null, 2));
       setError(matches.length ? '' : 'No values matched this expression.');
     } catch (cause) {
@@ -113,11 +121,25 @@ export default function JsonPathPanel({ tool: _tool }: { tool: Tool }) {
     }
   };
 
+  useEffect(() => {
+    if (json !== debouncedJson || expression !== debouncedExpression) {
+      setResult('');
+      setError('');
+      return;
+    }
+    if (!debouncedJson.trim() && !debouncedExpression.trim()) {
+      setResult('');
+      setError('');
+      return;
+    }
+    run(debouncedJson, debouncedExpression);
+  }, [json, expression, debouncedJson, debouncedExpression]);
+
   return <div className="h-full flex flex-col">
     <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border bg-secondary/30">
       <label className="text-xs text-muted-foreground shrink-0" title="Examples: $.users[*].name · $.users[?(@.active == true)] · $..id">JSONPath</label>
       <input className="input-code py-1 px-2 text-xs flex-1" value={expression} onChange={(event) => setExpression(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') run(); }} />
-      <button className="btn-primary text-xs" onClick={run}>Evaluate</button>
+      <button className="btn-primary text-xs" onClick={() => run()}>Evaluate</button>
     </div>
     <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-3 p-4">
       <div className="min-h-0 border border-border rounded-lg bg-input"><CodeEditor value={json} onChange={setJson} minHeight="100%" placeholder="JSON document…" /></div>

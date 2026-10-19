@@ -1,9 +1,10 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Tool } from '@/data/tools';
 import PanelLayout from '../PanelLayout';
 import CodeEditor from '../CodeEditor';
 import CodeOutput from '../CodeOutput';
+import { useDebouncedValue } from '../useDebouncedValue';
 
 const SAMPLE = `const fetchUserData=async(userId)=>{const response=await fetch(\`/api/users/\${userId}\`);if(!response.ok){throw new Error('Failed to fetch user: '+response.status);}const data=await response.json();return{id:data.id,name:data.name,email:data.email,createdAt:new Date(data.created_at).toISOString()};}`;
 
@@ -17,6 +18,52 @@ export default function JsFormatterPanel({ tool }: { tool: Tool }) {
   const [indent, setIndent] = useState(2);
   const [parser, setParser] = useState<'babel' | 'typescript'>('babel');
   const [loading, setLoading] = useState(false);
+  const debouncedInput = useDebouncedValue(input, 300);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (input !== debouncedInput) {
+      setOutput('');
+      setStatus('idle');
+      setError('');
+      return () => { cancelled = true; };
+    }
+    if (!debouncedInput.trim()) {
+      setOutput('');
+      setStatus('idle');
+      setError('');
+      return;
+    }
+    const formatLive = async () => {
+      try {
+        const prettier = await import('prettier/standalone');
+        const babelPlugin = await import('prettier/plugins/babel');
+        const estreePlugin = await import('prettier/plugins/estree');
+        const tsPlugin = await import('prettier/plugins/typescript');
+        const plugins = parser === 'typescript'
+          ? [tsPlugin.default, estreePlugin.default]
+          : [babelPlugin.default, estreePlugin.default];
+        const formatted = await prettier.format(debouncedInput, {
+          parser,
+          plugins,
+          tabWidth: indent,
+          semi: true,
+          singleQuote: true,
+        });
+        if (cancelled) return;
+        setOutput(formatted);
+        setStatus('success');
+        setError('');
+      } catch (cause) {
+        if (cancelled) return;
+        setStatus('error');
+        setError((cause instanceof Error ? cause.message : 'Format error').split('\n')[0]);
+        setOutput('');
+      }
+    };
+    void formatLive();
+    return () => { cancelled = true; };
+  }, [input, debouncedInput, parser, indent]);
 
   const format = async () => {
     setLoading(true);

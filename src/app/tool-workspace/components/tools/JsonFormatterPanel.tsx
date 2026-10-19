@@ -4,6 +4,7 @@ import { Tool } from '@/data/tools';
 import PanelLayout from '../PanelLayout';
 import CodeEditor from '../CodeEditor';
 import CodeOutput from '../CodeOutput';
+import { useDebouncedValue } from '../useDebouncedValue';
 import { Minimize2, ImageIcon, QrCode, CheckCircle2, Copy, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import jsQR from 'jsqr';
@@ -483,6 +484,7 @@ export default function JsonFormatterPanel({ tool }: { tool: Tool }) {
   const [decodingQr, setDecodingQr] = useState(false);
   const [copiedPayloadPath, setCopiedPayloadPath] = useState<string | null>(null);
   const [copiedImagePath, setCopiedImagePath] = useState<string | null>(null);
+  const debouncedInput = useDebouncedValue(input);
   const decodedEmvQrItems = decodedQrItems.filter((item) => item.hasDualCurrency !== undefined);
   const hasDualCurrency = decodedEmvQrItems.some((item) => item.hasDualCurrency);
   const dualCurrencySummary =
@@ -695,7 +697,6 @@ export default function JsonFormatterPanel({ tool }: { tool: Tool }) {
     setShowImagePreviews(false);
     setPreviews([]);
     setDecodedQrItems([]);
-    processContent(value, 'format');
   };
 
   const previewImages = () => {
@@ -833,8 +834,16 @@ export default function JsonFormatterPanel({ tool }: { tool: Tool }) {
   };
 
   useEffect(() => {
-    processContent(input, processingAction);
-  }, [sortKeys, indent]);
+    if (input !== debouncedInput) {
+      setOutput('');
+      setStatus('idle');
+      setError('');
+      return;
+    }
+    processContent(debouncedInput, 'format');
+    // Formatting is debounced so large pasted payloads do not parse on every keystroke.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [input, debouncedInput, inputFormat, outputFormat, sortKeys, indent]);
 
   return (
     <div className="h-full flex flex-col">
