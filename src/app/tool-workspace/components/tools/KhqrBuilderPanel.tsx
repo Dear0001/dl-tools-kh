@@ -102,7 +102,7 @@ export default function KhqrBuilderPanel({ tool }: { tool: Tool }) {
   const [headerImageDataUrl, setHeaderImageDataUrl] = useState<string | null>(null);
   const [headerImageName, setHeaderImageName] = useState('');
   const [headerColor, setHeaderColor] = useState('#e31b23');
-  const [headerShape, setHeaderShape] = useState<'folded' | 'rounded' | 'straight' | 'wave'>('folded');
+  const [headerShape, setHeaderShape] = useState<'folded' | 'rounded' | 'straight' | 'wave'>('rounded');
 
   // no external form state - only raw string input
 
@@ -160,10 +160,8 @@ export default function KhqrBuilderPanel({ tool }: { tool: Tool }) {
     } else if (headerShape === 'rounded') {
       ctx.moveTo(0, 0);
       ctx.lineTo(cardWidth, 0);
-      ctx.lineTo(cardWidth, 66);
-      ctx.quadraticCurveTo(cardWidth, 88, cardWidth - 22, 88);
-      ctx.lineTo(22, 88);
-      ctx.quadraticCurveTo(0, 88, 0, 66);
+      ctx.lineTo(cardWidth, 88);
+      ctx.lineTo(0, 88);
     } else if (headerShape === 'wave') {
       ctx.moveTo(0, 0);
       ctx.lineTo(cardWidth, 0);
@@ -389,7 +387,7 @@ export default function KhqrBuilderPanel({ tool }: { tool: Tool }) {
                       Header shape
                       <select value={headerShape} onChange={(e) => setHeaderShape(e.target.value as typeof headerShape)} className="select-input mt-1 w-full">
                         <option value="folded">Folded corner</option>
-                        <option value="rounded">Rounded</option>
+                        <option value="rounded">Rounded top corners</option>
                         <option value="straight">Straight</option>
                         <option value="wave">Wave</option>
                       </select>
