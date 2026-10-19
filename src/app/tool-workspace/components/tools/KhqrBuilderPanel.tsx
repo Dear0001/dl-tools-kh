@@ -62,7 +62,8 @@ function buildKhqr(data: any): string {
   // 53: Transaction Currency
   payload += tlv('53', data.currency === 'KHR' ? '116' : '840');
   // 54: Transaction Amount
-  if (data.amount && isDynamic) payload += tlv('54', data.amount);
+  const amountValue = data.amount == null ? '' : String(data.amount).trim();
+  if (isDynamic && amountValue !== '') payload += tlv('54', amountValue);
   // 58: Country Code
   payload += tlv('58', 'KH');
   // 59: Merchant Name
@@ -102,7 +103,6 @@ export default function KhqrBuilderPanel({ tool }: { tool: Tool }) {
   const [headerImageDataUrl, setHeaderImageDataUrl] = useState<string | null>(null);
   const [headerImageName, setHeaderImageName] = useState('');
   const [headerColor, setHeaderColor] = useState('#e31b23');
-  const [headerShape, setHeaderShape] = useState<'folded' | 'wave'>('folded');
 
   // no external form state - only raw string input
 
@@ -153,18 +153,11 @@ export default function KhqrBuilderPanel({ tool }: { tool: Tool }) {
     ctx.beginPath();
     const headerHeight = 88;
     const headerContentCenterY = 32.5;
-    if (headerShape === 'folded') {
-      ctx.moveTo(0, 0);
-      ctx.lineTo(cardWidth, 0);
-      ctx.lineTo(cardWidth, headerHeight);
-      ctx.lineTo(cardWidth - 30, headerHeight - 30);
-      ctx.lineTo(0, headerHeight - 30);
-    } else {
-      ctx.moveTo(0, 0);
-      ctx.lineTo(cardWidth, 0);
-      ctx.lineTo(cardWidth, headerHeight);
-      ctx.bezierCurveTo(305, headerHeight + 14, 105, headerHeight - 14, 0, headerHeight);
-    }
+    ctx.moveTo(0, 0);
+    ctx.lineTo(cardWidth, 0);
+    ctx.lineTo(cardWidth, headerHeight);
+    ctx.lineTo(cardWidth - 30, headerHeight - 30);
+    ctx.lineTo(0, headerHeight - 30);
     ctx.closePath();
     ctx.fill();
     if (headerImageDataUrl) {
@@ -200,12 +193,13 @@ export default function KhqrBuilderPanel({ tool }: { tool: Tool }) {
     const amount = readEmvTag(content, '54');
     const currencyCode = readEmvTag(content, '53');
     const currency = currencyCode === '116' ? 'KHR' : currencyCode === '840' ? 'USD' : currencyCode;
-    if (amount) {
+    if (amount !== '') {
       ctx.fillStyle = '#080808';
       ctx.font = '700 34px Arial, sans-serif';
       ctx.textAlign = 'left';
-      ctx.fillText(Number(amount).toLocaleString(undefined, { maximumFractionDigits: 4 }), 40, 145);
-      const amountWidth = ctx.measureText(Number(amount).toLocaleString(undefined, { maximumFractionDigits: 4 })).width;
+      const formattedAmount = Number(amount).toLocaleString(undefined, { maximumFractionDigits: 4 });
+      ctx.fillText(formattedAmount, 40, 145);
+      const amountWidth = ctx.measureText(formattedAmount).width;
       ctx.fillStyle = '#374151';
       ctx.font = '400 13px Arial, sans-serif';
       ctx.fillText(currency, 48 + amountWidth, 150);
@@ -263,7 +257,7 @@ export default function KhqrBuilderPanel({ tool }: { tool: Tool }) {
       renderQr(khqrString).catch(() => {});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fgColor, bgColor, logoDataUrl, logoSize, headerText, headerImageDataUrl, headerColor, headerShape]);
+  }, [fgColor, bgColor, logoDataUrl, logoSize, headerText, headerImageDataUrl, headerColor]);
 
   // File / drag-drop handlers for logo image
   const handleFile = (file: File | null) => {
@@ -380,10 +374,7 @@ export default function KhqrBuilderPanel({ tool }: { tool: Tool }) {
                     </label>
                     <label className="text-xs text-muted-foreground">
                       Header shape
-                      <select value={headerShape} onChange={(e) => setHeaderShape(e.target.value as typeof headerShape)} className="select-input mt-1 w-full">
-                        <option value="folded">Folded corner</option>
-                        <option value="wave">Curved wave</option>
-                      </select>
+                      <span className="input-field mt-1 flex w-full items-center text-foreground">Folded corner</span>
                     </label>
                   </div>
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-border p-3">
