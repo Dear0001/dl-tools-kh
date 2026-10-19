@@ -98,6 +98,11 @@ export default function KhqrBuilderPanel({ tool }: { tool: Tool }) {
   const [logoDataUrl, setLogoDataUrl] = useState<string | null>(defaultLogo);
   const [logoName, setLogoName] = useState<string | null>('Bakong logo');
   const [logoSize, setLogoSize] = useState(0.16);
+  const [headerText, setHeaderText] = useState('KHQR');
+  const [headerImageDataUrl, setHeaderImageDataUrl] = useState<string | null>(null);
+  const [headerImageName, setHeaderImageName] = useState('');
+  const [headerColor, setHeaderColor] = useState('#e31b23');
+  const [headerShape, setHeaderShape] = useState<'folded' | 'rounded' | 'straight' | 'wave'>('folded');
 
   // no external form state - only raw string input
 
@@ -117,7 +122,7 @@ export default function KhqrBuilderPanel({ tool }: { tool: Tool }) {
     }
   };
 
-  // Render the QR as a KHQR payment card, then composite the selected center logo.
+  // Render the card, QR, optional custom header artwork, and center logo.
   const renderQr = async (content: string) => {
     if (!canvasRef.current) return;
     const canvas = canvasRef.current;
@@ -144,20 +149,53 @@ export default function KhqrBuilderPanel({ tool }: { tool: Tool }) {
     ctx.clip();
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, cardWidth, cardHeight);
-    ctx.fillStyle = '#e31b23';
+    ctx.fillStyle = headerColor;
     ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(cardWidth, 0);
-    ctx.lineTo(cardWidth, 95);
-    ctx.lineTo(cardWidth - 30, 65);
-    ctx.lineTo(0, 65);
+    if (headerShape === 'folded') {
+      ctx.moveTo(0, 0);
+      ctx.lineTo(cardWidth, 0);
+      ctx.lineTo(cardWidth, 95);
+      ctx.lineTo(cardWidth - 30, 65);
+      ctx.lineTo(0, 65);
+    } else if (headerShape === 'rounded') {
+      ctx.moveTo(0, 0);
+      ctx.lineTo(cardWidth, 0);
+      ctx.lineTo(cardWidth, 66);
+      ctx.quadraticCurveTo(cardWidth, 88, cardWidth - 22, 88);
+      ctx.lineTo(22, 88);
+      ctx.quadraticCurveTo(0, 88, 0, 66);
+    } else if (headerShape === 'wave') {
+      ctx.moveTo(0, 0);
+      ctx.lineTo(cardWidth, 0);
+      ctx.lineTo(cardWidth, 69);
+      ctx.bezierCurveTo(305, 108, 105, 48, 0, 91);
+    } else {
+      ctx.rect(0, 0, cardWidth, 78);
+    }
     ctx.closePath();
     ctx.fill();
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '600 34px Arial, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('KHQR', cardWidth / 2, 33);
+    if (headerImageDataUrl) {
+      const headerImage = new Image();
+      headerImage.src = headerImageDataUrl;
+      await new Promise<void>((resolve, reject) => {
+        headerImage.onload = () => {
+          const maxWidth = cardWidth - 56;
+          const maxHeight = 48;
+          const scale = Math.min(maxWidth / headerImage.naturalWidth, maxHeight / headerImage.naturalHeight);
+          const width = headerImage.naturalWidth * scale;
+          const height = headerImage.naturalHeight * scale;
+          ctx.drawImage(headerImage, (cardWidth - width) / 2, 38 - height / 2, width, height);
+          resolve();
+        };
+        headerImage.onerror = () => reject(new Error('Could not load the header image.'));
+      });
+    } else {
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '600 34px Arial, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(headerText.slice(0, 24) || 'KHQR', cardWidth / 2, 38);
+    }
 
     const merchantName = readMerchantName(content);
     if (merchantName) {
@@ -232,7 +270,7 @@ export default function KhqrBuilderPanel({ tool }: { tool: Tool }) {
       renderQr(khqrString).catch(() => {});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fgColor, bgColor, logoDataUrl, logoSize]);
+  }, [fgColor, bgColor, logoDataUrl, logoSize, headerText, headerImageDataUrl, headerColor, headerShape]);
 
   // File / drag-drop handlers for logo image
   const handleFile = (file: File | null) => {
@@ -249,6 +287,25 @@ export default function KhqrBuilderPanel({ tool }: { tool: Tool }) {
     reader.readAsDataURL(file);
   };
 
+  const handleHeaderImage = (file: File | null) => {
+    if (!file) return;
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+      toast.error('Choose a PNG, JPG, or WebP image for the header.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Header image must be 5 MB or smaller.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setHeaderImageDataUrl(String(reader.result));
+      setHeaderImageName(file.name);
+    };
+    reader.onerror = () => toast.error('Could not read this header image.');
+    reader.readAsDataURL(file);
+  };
+
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     const file = e.dataTransfer.files?.[0];
@@ -262,6 +319,11 @@ export default function KhqrBuilderPanel({ tool }: { tool: Tool }) {
   const removeLogo = () => {
     setLogoDataUrl(defaultLogo);
     setLogoName('Bakong logo');
+  };
+
+  const removeHeaderImage = () => {
+    setHeaderImageDataUrl(null);
+    setHeaderImageName('');
   };
 
   const copyString = async () => {
@@ -304,6 +366,55 @@ export default function KhqrBuilderPanel({ tool }: { tool: Tool }) {
                     <input type="color" value={bgColor} onChange={(e) => setBgColor(e.target.value)} className="w-9 h-9 p-0 border rounded" />
                   </div>
                   <div className="text-2xs text-muted-foreground">Background is also used behind the center logo</div>
+                </div>
+                <div className="mt-5 border-t border-border pt-4">
+                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Card header</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] gap-3">
+                    <label className="text-xs text-muted-foreground">
+                      Header text
+                      <input
+                        value={headerText}
+                        onChange={(e) => setHeaderText(e.target.value)}
+                        maxLength={24}
+                        disabled={Boolean(headerImageDataUrl)}
+                        placeholder="KHQR"
+                        className="input-field mt-1 w-full disabled:opacity-50"
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+                      Header color
+                      <input type="color" value={headerColor} onChange={(e) => setHeaderColor(e.target.value)} className="h-10 w-14 rounded border border-border bg-transparent p-1" />
+                    </label>
+                    <label className="text-xs text-muted-foreground">
+                      Header shape
+                      <select value={headerShape} onChange={(e) => setHeaderShape(e.target.value as typeof headerShape)} className="select-input mt-1 w-full">
+                        <option value="folded">Folded corner</option>
+                        <option value="rounded">Rounded</option>
+                        <option value="straight">Straight</option>
+                        <option value="wave">Wave</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-border p-3">
+                    <div className="flex min-w-0 items-center gap-3">
+                      {headerImageDataUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={headerImageDataUrl} alt="Custom header artwork" className="h-10 w-20 rounded bg-muted object-contain p-1" />
+                      ) : (
+                        <div className="flex h-10 w-20 items-center justify-center rounded bg-muted text-xs font-semibold text-foreground">{headerText || 'KHQR'}</div>
+                      )}
+                      <div className="min-w-0 text-xs">
+                        <div className="truncate text-foreground">{headerImageName || 'Use custom header image'}</div>
+                        <div className="text-2xs text-muted-foreground">PNG, JPG, or WebP · up to 5 MB · stays on this device</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input id="khqr-header-upload" type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => handleHeaderImage(e.target.files?.[0] ?? null)} className="hidden" />
+                      <label htmlFor="khqr-header-upload" className="btn-ghost cursor-pointer text-xs">Upload image</label>
+                      {headerImageDataUrl && <button type="button" className="btn-ghost text-xs" onClick={removeHeaderImage}>Use text</button>}
+                    </div>
+                  </div>
+                  <p className="mt-2 text-2xs text-muted-foreground">An uploaded image replaces the header text. Color and shape still apply to the band behind it.</p>
                 </div>
                 <div className="mt-3">
                   <label className="text-xs text-muted-foreground mb-2 block">Logo (center) — drag & drop or upload</label>
