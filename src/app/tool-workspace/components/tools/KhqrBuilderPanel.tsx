@@ -160,15 +160,15 @@ export default function KhqrBuilderPanel({ tool }: { tool: Tool }) {
     } else if (headerShape === 'rounded') {
       ctx.moveTo(0, 0);
       ctx.lineTo(cardWidth, 0);
-      ctx.lineTo(cardWidth, 88);
-      ctx.lineTo(0, 88);
+      ctx.lineTo(cardWidth, 95);
+      ctx.lineTo(0, 95);
     } else if (headerShape === 'wave') {
       ctx.moveTo(0, 0);
       ctx.lineTo(cardWidth, 0);
-      ctx.lineTo(cardWidth, 69);
-      ctx.bezierCurveTo(305, 108, 105, 48, 0, 91);
+      ctx.lineTo(cardWidth, 95);
+      ctx.bezierCurveTo(305, 108, 105, 82, 0, 95);
     } else {
-      ctx.rect(0, 0, cardWidth, 78);
+      ctx.rect(0, 0, cardWidth, 95);
     }
     ctx.closePath();
     ctx.fill();
@@ -177,12 +177,12 @@ export default function KhqrBuilderPanel({ tool }: { tool: Tool }) {
       headerImage.src = headerImageDataUrl;
       await new Promise<void>((resolve, reject) => {
         headerImage.onload = () => {
-          const maxWidth = cardWidth * 0.55;
-          const maxHeight = 32;
+          const maxWidth = cardWidth * 0.4;
+          const maxHeight = 24;
           const scale = Math.min(maxWidth / headerImage.naturalWidth, maxHeight / headerImage.naturalHeight);
           const width = headerImage.naturalWidth * scale;
           const height = headerImage.naturalHeight * scale;
-          ctx.drawImage(headerImage, (cardWidth - width) / 2, 38 - height / 2, width, height);
+          ctx.drawImage(headerImage, (cardWidth - width) / 2, 47.5 - height / 2, width, height);
           resolve();
         };
         headerImage.onerror = () => reject(new Error('Could not load the header image.'));
@@ -192,7 +192,7 @@ export default function KhqrBuilderPanel({ tool }: { tool: Tool }) {
       ctx.font = '600 30px Arial, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(headerText.slice(0, 24) || 'KHQR', cardWidth / 2, 38);
+      ctx.fillText(headerText.slice(0, 24) || 'KHQR', cardWidth / 2, 47.5);
     }
 
     const merchantName = readMerchantName(content);
