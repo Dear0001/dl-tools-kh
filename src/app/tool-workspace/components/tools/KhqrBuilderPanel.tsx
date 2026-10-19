@@ -152,6 +152,7 @@ export default function KhqrBuilderPanel({ tool }: { tool: Tool }) {
     ctx.fillStyle = headerColor;
     ctx.beginPath();
     const headerHeight = 88;
+    const headerContentCenterY = 32.5;
     if (headerShape === 'folded') {
       ctx.moveTo(0, 0);
       ctx.lineTo(cardWidth, 0);
@@ -178,12 +179,12 @@ export default function KhqrBuilderPanel({ tool }: { tool: Tool }) {
       headerImage.src = headerImageDataUrl;
       await new Promise<void>((resolve, reject) => {
         headerImage.onload = () => {
-          const maxWidth = cardWidth * 0.4;
+          const maxWidth = cardWidth * 0.32;
           const maxHeight = 24;
           const scale = Math.min(maxWidth / headerImage.naturalWidth, maxHeight / headerImage.naturalHeight);
           const width = headerImage.naturalWidth * scale;
           const height = headerImage.naturalHeight * scale;
-          ctx.drawImage(headerImage, (cardWidth - width) / 2, headerHeight / 2 - height / 2, width, height);
+          ctx.drawImage(headerImage, (cardWidth - width) / 2, headerContentCenterY - height / 2, width, height);
           resolve();
         };
         headerImage.onerror = () => reject(new Error('Could not load the header image.'));
@@ -193,7 +194,7 @@ export default function KhqrBuilderPanel({ tool }: { tool: Tool }) {
       ctx.font = '600 30px Arial, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(headerText.slice(0, 24) || 'KHQR', cardWidth / 2, headerHeight / 2);
+      ctx.fillText(headerText.slice(0, 24) || 'KHQR', cardWidth / 2, headerContentCenterY);
     }
 
     const merchantName = readMerchantName(content);
