@@ -102,7 +102,7 @@ export default function KhqrBuilderPanel({ tool }: { tool: Tool }) {
   const [headerImageDataUrl, setHeaderImageDataUrl] = useState<string | null>(null);
   const [headerImageName, setHeaderImageName] = useState('');
   const [headerColor, setHeaderColor] = useState('#e31b23');
-  const [headerShape, setHeaderShape] = useState<'folded' | 'rounded' | 'straight' | 'wave'>('rounded');
+  const [headerShape, setHeaderShape] = useState<'folded' | 'wave'>('folded');
 
   // no external form state - only raw string input
 
@@ -159,18 +159,11 @@ export default function KhqrBuilderPanel({ tool }: { tool: Tool }) {
       ctx.lineTo(cardWidth, headerHeight);
       ctx.lineTo(cardWidth - 30, headerHeight - 30);
       ctx.lineTo(0, headerHeight - 30);
-    } else if (headerShape === 'rounded') {
-      ctx.moveTo(0, 0);
-      ctx.lineTo(cardWidth, 0);
-      ctx.lineTo(cardWidth, headerHeight);
-      ctx.lineTo(0, headerHeight);
-    } else if (headerShape === 'wave') {
-      ctx.moveTo(0, 0);
-      ctx.lineTo(cardWidth, 0);
-      ctx.lineTo(cardWidth, headerHeight);
-      ctx.bezierCurveTo(305, headerHeight + 8, 105, headerHeight - 8, 0, headerHeight);
     } else {
-      ctx.rect(0, 0, cardWidth, headerHeight);
+      ctx.moveTo(0, 0);
+      ctx.lineTo(cardWidth, 0);
+      ctx.lineTo(cardWidth, headerHeight);
+      ctx.bezierCurveTo(305, headerHeight + 14, 105, headerHeight - 14, 0, headerHeight);
     }
     ctx.closePath();
     ctx.fill();
@@ -389,9 +382,7 @@ export default function KhqrBuilderPanel({ tool }: { tool: Tool }) {
                       Header shape
                       <select value={headerShape} onChange={(e) => setHeaderShape(e.target.value as typeof headerShape)} className="select-input mt-1 w-full">
                         <option value="folded">Folded corner</option>
-                        <option value="rounded">Rounded top corners</option>
-                        <option value="straight">Straight</option>
-                        <option value="wave">Wave</option>
+                        <option value="wave">Curved wave</option>
                       </select>
                     </label>
                   </div>
