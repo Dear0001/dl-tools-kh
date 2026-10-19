@@ -151,24 +151,25 @@ export default function KhqrBuilderPanel({ tool }: { tool: Tool }) {
     ctx.fillRect(0, 0, cardWidth, cardHeight);
     ctx.fillStyle = headerColor;
     ctx.beginPath();
+    const headerHeight = 88;
     if (headerShape === 'folded') {
       ctx.moveTo(0, 0);
       ctx.lineTo(cardWidth, 0);
-      ctx.lineTo(cardWidth, 95);
-      ctx.lineTo(cardWidth - 30, 65);
-      ctx.lineTo(0, 65);
+      ctx.lineTo(cardWidth, headerHeight);
+      ctx.lineTo(cardWidth - 30, headerHeight - 30);
+      ctx.lineTo(0, headerHeight - 30);
     } else if (headerShape === 'rounded') {
       ctx.moveTo(0, 0);
       ctx.lineTo(cardWidth, 0);
-      ctx.lineTo(cardWidth, 95);
-      ctx.lineTo(0, 95);
+      ctx.lineTo(cardWidth, headerHeight);
+      ctx.lineTo(0, headerHeight);
     } else if (headerShape === 'wave') {
       ctx.moveTo(0, 0);
       ctx.lineTo(cardWidth, 0);
-      ctx.lineTo(cardWidth, 95);
-      ctx.bezierCurveTo(305, 108, 105, 82, 0, 95);
+      ctx.lineTo(cardWidth, headerHeight);
+      ctx.bezierCurveTo(305, headerHeight + 8, 105, headerHeight - 8, 0, headerHeight);
     } else {
-      ctx.rect(0, 0, cardWidth, 95);
+      ctx.rect(0, 0, cardWidth, headerHeight);
     }
     ctx.closePath();
     ctx.fill();
@@ -182,7 +183,7 @@ export default function KhqrBuilderPanel({ tool }: { tool: Tool }) {
           const scale = Math.min(maxWidth / headerImage.naturalWidth, maxHeight / headerImage.naturalHeight);
           const width = headerImage.naturalWidth * scale;
           const height = headerImage.naturalHeight * scale;
-          ctx.drawImage(headerImage, (cardWidth - width) / 2, 47.5 - height / 2, width, height);
+          ctx.drawImage(headerImage, (cardWidth - width) / 2, headerHeight / 2 - height / 2, width, height);
           resolve();
         };
         headerImage.onerror = () => reject(new Error('Could not load the header image.'));
@@ -192,7 +193,7 @@ export default function KhqrBuilderPanel({ tool }: { tool: Tool }) {
       ctx.font = '600 30px Arial, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(headerText.slice(0, 24) || 'KHQR', cardWidth / 2, 47.5);
+      ctx.fillText(headerText.slice(0, 24) || 'KHQR', cardWidth / 2, headerHeight / 2);
     }
 
     const merchantName = readMerchantName(content);
