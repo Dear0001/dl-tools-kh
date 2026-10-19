@@ -193,16 +193,19 @@ export default function KhqrBuilderPanel({ tool }: { tool: Tool }) {
     const amount = readEmvTag(content, '54');
     const currencyCode = readEmvTag(content, '53');
     const currency = currencyCode === '116' ? 'KHR' : currencyCode === '840' ? 'USD' : currencyCode;
-    if (amount !== '') {
+    const hasKnownCurrency = currencyCode === '116' || currencyCode === '840';
+    const formattedAmount = amount !== ''
+      ? Number(amount).toLocaleString(undefined, { maximumFractionDigits: 4 })
+      : currencyCode === '840' ? '0.0' : '0';
+    if (amount !== '' || hasKnownCurrency) {
       ctx.fillStyle = '#080808';
       ctx.font = '700 34px Arial, sans-serif';
       ctx.textAlign = 'left';
-      const formattedAmount = Number(amount).toLocaleString(undefined, { maximumFractionDigits: 4 });
       ctx.fillText(formattedAmount, 40, 145);
       const amountWidth = ctx.measureText(formattedAmount).width;
       ctx.fillStyle = '#374151';
       ctx.font = '400 13px Arial, sans-serif';
-      ctx.fillText(currency, 48 + amountWidth, 150);
+      ctx.fillText(currency, 48 + amountWidth, 145);
     }
     ctx.strokeStyle = '#e5e7eb';
     ctx.setLineDash([4, 5]);
