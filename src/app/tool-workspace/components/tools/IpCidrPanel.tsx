@@ -25,7 +25,7 @@ function addressScope(ip: bigint) {
 }
 
 export default function IpCidrPanel({ tool: _tool }: { tool: Tool }) {
-  const [input, setInput] = useState('192.168.1.10/24');
+  const [input, setInput] = useState('192.111.11.110/24');
   const result = useMemo(() => {
     try {
       const [address, prefixText] = input.trim().split('/');
@@ -47,7 +47,7 @@ export default function IpCidrPanel({ tool: _tool }: { tool: Tool }) {
     } catch (cause) { return { rows: [], error: cause instanceof Error ? cause.message : 'Invalid IPv4 address.' }; }
   }, [input]);
   return <div className="h-full overflow-auto p-5 max-w-3xl">
-    <label className="block text-xs text-muted-foreground">IPv4 address or CIDR<input className="input-code w-full p-3 mt-1" value={input} onChange={(event) => setInput(event.target.value)} placeholder="192.168.1.10/24" /></label>
+    <label className="block text-xs text-muted-foreground">IPv4 address or CIDR<input className="input-code w-full p-3 mt-1" value={input} onChange={(event) => setInput(event.target.value)} placeholder="192.111.11.110/24" /></label>
     <p className="text-xs text-muted-foreground mt-2 mb-4">IPv4 calculator. Enter an address alone to inspect its scope, or add a prefix to calculate a subnet.</p>
     {result.error ? <p className="text-sm text-red-300">{result.error}</p> : <dl className="grid sm:grid-cols-2 gap-2">{result.rows.map(([label, value]) => <div key={label} className="p-3 rounded-lg bg-secondary/30"><dt className="text-xs text-muted-foreground">{label}</dt><dd className="font-mono text-sm mt-1">{value}</dd></div>)}</dl>}
   </div>;
